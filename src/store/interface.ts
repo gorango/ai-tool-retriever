@@ -5,13 +5,18 @@ export interface ToolWithMetadata {
 	definition: ToolDefinition
 	/* The embedding vector for this tool */
 	embedding: number[]
+	/** A hash of the tool's content (description, keywords, etc.) to detect changes. */
+	contentHash: string
 }
 
 export interface ToolStore {
 	/**
-	 * Adds a collection of tools to the store, generating embeddings.
+	 * Synchronizes the store with the provided tool definitions.
+	 * It should handle adding new tools, updating changed tools (based on content),
+	 * and optionally removing tools that are no longer defined.
+	 * @param tools The complete list of current tool definitions.
 	 */
-	add: (tools: ToolDefinition[]) => Promise<void>
+	sync: (tools: ToolDefinition[]) => Promise<void>
 
 	/**
 	 * Searches the store for the most relevant tools based on a query embedding.

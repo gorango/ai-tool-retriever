@@ -1,3 +1,6 @@
+import type { ToolDefinition } from './types'
+import { createHash } from 'node:crypto'
+
 /**
  * Calculates the cosine similarity between two vectors.
  * @param vecA The first vector.
@@ -48,4 +51,19 @@ export function extractToolsFromQuerySyntax(query: string): string[] {
 			toolNames.add(toolName)
 	}
 	return Array.from(toolNames)
+}
+
+/**
+ * Creates a stable SHA-256 hash from a tool's content to detect changes.
+ * @param definition The tool definition.
+ * @returns A hex digest representing the tool's content.
+ */
+export function createToolContentHash(definition: ToolDefinition): string {
+	const sourceText = JSON.stringify({
+		name: definition.name,
+		description: definition.tool.description,
+		parameters: definition.tool.inputSchema, // zod schema for the hash
+		keywords: definition.keywords?.sort(), // sort keywords for a stable hash
+	})
+	return createHash('sha256').update(sourceText).digest('hex')
 }

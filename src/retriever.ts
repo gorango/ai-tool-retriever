@@ -40,7 +40,7 @@ export class ToolRetriever {
 		retriever.embeddingService = await EmbeddingService.getInstance()
 
 		// Asynchronously index the tools
-		await retriever.store.add(options.tools)
+		await retriever.store.sync(options.tools)
 		return retriever
 	}
 

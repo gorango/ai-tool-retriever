@@ -1,5 +1,8 @@
+import type { ToolDefinition } from './types'
+import { tool as createTool } from 'ai'
 import { describe, expect, it } from 'vitest'
-import { cosineSimilarity, extractToolsFromQuerySyntax } from './utils'
+import { z } from 'zod'
+import { cosineSimilarity, createToolContentHash, extractToolsFromQuerySyntax } from './utils'
 
 describe('extractToolsFromQuerySyntax', () => {
 	it('should extract a single tool name', () => {
@@ -68,5 +71,66 @@ describe('cosineSimilarity', () => {
 		const vecA = [1, 2, 3]
 		const vecB = [0, 0, 0]
 		expect(cosineSimilarity(vecA, vecB)).toBe(0)
+	})
+})
+
+describe('createToolContentHash', () => {
+	const baseTool: ToolDefinition = {
+		name: 'myTool',
+		tool: createTool({
+			description: 'A test tool',
+			inputSchema: z.object({ param: z.string() }),
+		}),
+		keywords: ['test', 'alpha'],
+	}
+
+	it('should be deterministic for the same tool definition', () => {
+		const hash1 = createToolContentHash(baseTool)
+		const hash2 = createToolContentHash(baseTool)
+		expect(hash1).toBe(hash2)
+		expect(hash1).toBe('9fcdb9d4de7269f1a936c267bb6eb8a54bf4f9999dea7117d5b8a652a49a8fce')
+	})
+
+	it('should produce a different hash if the description changes', () => {
+		const modifiedTool: ToolDefinition = {
+			...baseTool,
+			tool: createTool({ ...baseTool.tool, description: 'A different description' }),
+		}
+		const hash1 = createToolContentHash(baseTool)
+		const hash2 = createToolContentHash(modifiedTool)
+		expect(hash1).not.toBe(hash2)
+	})
+
+	it('should produce a different hash if keywords are added or changed', () => {
+		const modifiedTool: ToolDefinition = {
+			...baseTool,
+			keywords: ['test', 'alpha', 'beta'],
+		}
+		const hash1 = createToolContentHash(baseTool)
+		const hash2 = createToolContentHash(modifiedTool)
+		expect(hash1).not.toBe(hash2)
+	})
+
+	it('should produce the same hash regardless of keyword order', () => {
+		const modifiedTool: ToolDefinition = {
+			...baseTool,
+			keywords: ['alpha', 'test'], // flipped order
+		}
+		const hash1 = createToolContentHash(baseTool)
+		const hash2 = createToolContentHash(modifiedTool)
+		expect(hash1).toBe(hash2)
+	})
+
+	it('should produce a different hash if the Zod schema changes', () => {
+		const modifiedTool: ToolDefinition = {
+			...baseTool,
+			tool: createTool({
+				...baseTool.tool,
+				inputSchema: z.object({ param: z.number() }),
+			}),
+		}
+		const hash1 = createToolContentHash(baseTool)
+		const hash2 = createToolContentHash(modifiedTool)
+		expect(hash1).not.toBe(hash2)
 	})
 })

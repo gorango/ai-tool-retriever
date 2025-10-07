@@ -15,7 +15,7 @@ const newsToolDef: ToolDefinition = {
 }
 
 const mockStore: ToolStore = {
-	add: vi.fn().mockResolvedValue(undefined),
+	sync: vi.fn().mockResolvedValue(undefined),
 	search: vi.fn().mockImplementation(async (embedding, _count, threshold) => {
 		// Simulate finding weather tool if embedding[0] is high
 		if (embedding[0] > (threshold || 0))

@@ -11,6 +11,7 @@ It uses in-memory semantic search to find the best tools for the job, ensuring y
 - **Keyword Enhanced**: Improve search accuracy by adding custom `keywords` to your tool definitions.
 - **Explicit Tool Forcing**: Users can force tool inclusion with a simple `[toolName]` syntax in their query.
 - **Configurable Retrieval**: Fine-tune results with similarity thresholds and control behavior for missing tools.
+- **Idempotent Syncing**: Built-in content hashing utilities to efficiently sync tools with persistent vector stores, avoiding redundant embedding calculations.
 - **Extensible**: Bring your own vector store (e.g., Supabase, Pinecone, Redis) by implementing a simple `ToolStore` interface.
 - **TypeScript Native**: Fully written in TypeScript with comprehensive type definitions.
 
@@ -28,8 +29,6 @@ The first time you use the retriever, it will download and cache the embedding m
 import { ToolRetriever, ToolDefinition } from "ai-tool-retriever";
 import { z } from "zod";
 import { tool } from "ai";
-import { streamUI } from "ai/rsc";
-import { openai } from "@ai-sdk/openai";
 
 // 1. Define all your available tools using the ToolDefinition type
 const allMyTools: ToolDefinition[] = [
@@ -38,9 +37,7 @@ const allMyTools: ToolDefinition[] = [
 		tool: tool({
 			description: "Fetches the weather for a given location.",
 			parameters: z.object({ city: z.string() }),
-			execute: async ({ city }) => ({ temperature: 22, unit: "celsius" }),
 		}),
-		// Optional metadata to improve retrieval
 		keywords: ["forecast", "temperature", "climate", "rain", "sun"],
 	},
 	{
@@ -49,55 +46,31 @@ const allMyTools: ToolDefinition[] = [
 			description:
 				"Searches for financial news articles about a company.",
 			parameters: z.object({ ticker: z.string() }),
-			execute: async ({ ticker }) => ({ headlines: ["..."] }),
 		}),
 		keywords: ["stocks", "market", "earnings", "sec filings", "investing"],
 	},
 ];
 
-// 2. Initialize the retriever with your tools.
-// Must be done in an async context.
+// 2. Initialize the retriever with your tools in an async context.
 async function initializeRetriever() {
 	console.log("Initializing retriever and indexing tools...");
-	const retriever = await ToolRetriever.create({
-		tools: allMyTools,
-		// store: new MyCustomPineconeStore() // Optionally, bring your own store
-	});
+	const retriever = await ToolRetriever.create({ tools: allMyTools });
 	console.log("Retriever initialized.");
 	return retriever;
 }
 
 // 3. Use it to get relevant tools for any query
 async function processMessage(retriever: ToolRetriever, userInput: string) {
-	// Dynamically select tools based on the user's prompt
 	const relevantTools = await retriever.retrieve(userInput);
 	console.log(
 		`Query: "${userInput}" -> Tools: [${Object.keys(relevantTools).join(", ")}]`,
 	);
-
-	// Now, pass only these dynamically selected tools to the AI model
-	// const { toolResults } = await streamUI({
-	// 	model: openai('gpt-4o'),
-	// 	prompt: userInput,
-	// 	tools: relevantTools,
-	// });
-	// ... handle results
 }
 
 async function main() {
 	const retriever = await initializeRetriever();
-
 	await processMessage(retriever, "What are the latest earnings for TSLA?");
-	// Query: "What are the latest earnings for TSLA?" -> Tools: [searchFinancialNews]
-
 	await processMessage(retriever, "is it sunny in California?");
-	// Query: "is it sunny in California?" -> Tools: [getWeather]
-
-	await processMessage(
-		retriever,
-		"Give me stock market news for NVDA and also tell me the weather in SF",
-	);
-	// Query: "Give me stock market news for NVDA and also tell me the weather in SF" -> Tools: [searchFinancialNews, getWeather]
 }
 
 main();
@@ -111,67 +84,143 @@ The `retrieve` method accepts an optional second argument to fine-tune its behav
 
 ```typescript
 const relevantTools = await retriever.retrieve(
-	// The user query, which may contain explicit tool syntax
 	"Some query that might also ask for [aMissingTool]",
 	{
-		// Max number of tools to return from semantic search
 		matchCount: 5,
-
-		// The minimum cosine similarity score (0 to 1) for a tool to be included
 		matchThreshold: 0.75,
-
-		// If true, throws an error if a tool in [syntax] is not found.
-		// If false (default), it will console.warn and continue.
 		strict: true,
 	},
 );
 // This would throw: Error: Tool 'aMissingTool' from query syntax not found.
 ```
 
-#### Custom Vector Store
+### Custom Vector Store
 
-To use a different vector database, simply implement the `ToolStore` interface and pass an instance to the `ToolRetriever` constructor.
+To use a different vector database, implement the `ToolStore` interface. The `sync` method is called once during initialization to ensure the vector database is up-to-date with your tool definitions.
+
+For persistent stores (like Supabase or Pinecone), it's crucial to implement `sync` efficiently to avoid re-calculating embeddings for unchanged tools on every application restart. The library provides a `createToolContentHash` utility to help with this.
+
+#### Example: A Robust Supabase Store
+
+This example demonstrates a persistent store that only generates embeddings for new or changed tools, making it highly efficient.
+
+First, you would need a table and a search function in Supabase:
+
+```sql
+-- 1. Create a table to store tool embeddings
+CREATE TABLE ai_tools (
+  name TEXT PRIMARY KEY,
+  description TEXT,
+  content_hash TEXT NOT NULL,
+  embedding VECTOR(384) -- Dimension of Xenova/all-MiniLM-L6-v2
+);
+
+-- 2. Create a function for vector similarity search
+CREATE OR REPLACE FUNCTION match_ai_tools (
+  query_embedding VECTOR(384),
+  match_threshold FLOAT,
+  match_count INT
+) RETURNS TABLE (name TEXT, similarity FLOAT)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT t.name, 1 - (t.embedding <=> query_embedding) AS similarity
+  FROM ai_tools t
+  WHERE 1 - (t.embedding <=> query_embedding) > match_threshold
+  ORDER BY similarity DESC
+  LIMIT match_count;
+END;
+$$;
+```
+
+Next, your `ToolStore` implementation would manage syncing and searching:
 
 ```typescript
 import type { ToolStore, ToolDefinition } from "ai-tool-retriever";
+import {
+	createToolContentHash,
+	EmbeddingService,
+} from "ai-tool-retriever/utils";
+import { createClient } from "@supabase/supabase-js";
 
-class MyRedisStore implements ToolStore {
-	// ... Redis client setup
-	async add(tools: ToolDefinition[]): Promise<void> {
-		// Your logic to generate embeddings and store them in Redis
+const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
+
+/**
+ * @example
+ * const myTools: ToolDefinition[] = [ { ... }, { ... } ];
+ * const retriever = await ToolRetriever.create({
+ *   tools: myTools,
+ *   store: await SupabaseStore.create(myTools),
+ * });
+ */
+class SupabaseStore implements ToolStore {
+	private embeddingService!: EmbeddingService;
+	private allToolsMap: Map<string, ToolDefinition>;
+
+	private constructor(tools: ToolDefinition[]) {
+		this.allToolsMap = new Map(tools.map((t) => [t.name, t]));
 	}
+
+	public static async create(
+		tools: ToolDefinition[],
+	): Promise<SupabaseStore> {
+		const store = new SupabaseStore(tools);
+		store.embeddingService = await EmbeddingService.getInstance();
+		return store;
+	}
+
+	async sync(toolDefinitions: ToolDefinition[]): Promise<void> {
+		console.log("Syncing tools with Supabase...");
+		const { data: existing } = await sb
+			.from("ai_tools")
+			.select("name, content_hash");
+		const existingToolsMap = new Map(
+			existing!.map((t) => [t.name, t.content_hash]),
+		);
+
+		const toolsToUpdate = toolDefinitions.filter((def) => {
+			const newHash = createToolContentHash(def);
+			return existingToolsMap.get(def.name) !== newHash;
+		});
+
+		if (toolsToUpdate.length > 0) {
+			console.log(
+				`Found ${toolsToUpdate.length} new or updated tools to embed.`,
+			);
+			const texts = toolsToUpdate.map(
+				(t) => `${t.name}: ${t.tool.description}`,
+			);
+			const embeddings =
+				await this.embeddingService.getFloatEmbeddingsBatch(texts);
+
+			const records = toolsToUpdate.map((tool, i) => ({
+				name: tool.name,
+				description: tool.tool.description,
+				content_hash: createToolContentHash(tool),
+				embedding: embeddings[i],
+			}));
+
+			await sb.from("ai_tools").upsert(records, { onConflict: "name" });
+		} else {
+			console.log("All tools are already up-to-date in Supabase.");
+		}
+	}
+
 	async search(
 		queryEmbedding: number[],
 		count: number,
 		threshold: number,
 	): Promise<ToolDefinition[]> {
-		// Your logic to perform a vector search query in Redis,
-		// respecting the count and similarity threshold.
+		const { data: results } = await sb.rpc("match_ai_tools", {
+			query_embedding: queryEmbedding,
+			match_count: count,
+			match_threshold: threshold,
+		});
+
+		if (!results) return [];
+		return results
+			.map((r) => this.allToolsMap.get(r.name))
+			.filter(Boolean) as ToolDefinition[];
 	}
-}
-
-const retriever = await ToolRetriever.create({
-	tools: allMyTools,
-	store: new MyRedisStore(),
-});
-```
-
-### Pre-downloading the Model
-
-You can add a script to your `package.json` to download the model during your build or post-install step. This is highly recommended for production and serverless environments to avoid a cold start.
-
-**`scripts/download-model.ts`**
-
-```typescript
-// You can re-export the download script from the library or create your own.
-// For example, by creating this file and pointing it to the library's script.
-import "ai-tool-retriever/dist/embedding/download.js";
-```
-
-**`package.json`**
-
-```json
-"scripts": {
-  "postinstall": "tsx ./scripts/download-model.ts"
 }
 ```

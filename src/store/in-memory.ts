@@ -1,13 +1,13 @@
 import type { ToolDefinition } from '../types'
 import type { ToolStore, ToolWithMetadata } from './interface'
 import { EmbeddingService } from '../embedding/service'
-import { cosineSimilarity } from '../utils'
+import { cosineSimilarity, createToolContentHash } from '../utils'
 
 export class InMemoryStore implements ToolStore {
 	private tools: ToolWithMetadata[] = []
 	private embeddingService!: EmbeddingService
 
-	// A private constructor is used to enforce async initialization via `create`.
+	// private constructor is used to enforce async initialization via `create`.
 	private constructor() { }
 
 	/**
@@ -20,9 +20,11 @@ export class InMemoryStore implements ToolStore {
 		return store
 	}
 
-	async add(toolDefinitions: ToolDefinition[]): Promise<void> {
-		if (toolDefinitions.length === 0)
+	async sync(toolDefinitions: ToolDefinition[]): Promise<void> {
+		if (toolDefinitions.length === 0) {
+			this.tools = []
 			return
+		}
 
 		const textsToEmbed = toolDefinitions.map((definition) => {
 			const description = definition.tool.description || ''
@@ -32,9 +34,12 @@ export class InMemoryStore implements ToolStore {
 
 		const embeddings = await this.embeddingService.getFloatEmbeddingsBatch(textsToEmbed)
 
+		// The InMemoryStore always rebuilds, so the logic is simple.
+		// A persistent store would have more complex logic here (see below).
 		this.tools = toolDefinitions.map((definition, i) => ({
 			definition,
 			embedding: embeddings[i],
+			contentHash: createToolContentHash(definition),
 		}))
 	}
 
