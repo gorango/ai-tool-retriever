@@ -33,7 +33,7 @@ export class InMemoryStore implements ToolStore {
 		this.tools = newToolsWithMetadata
 	}
 
-	async search(queryEmbedding: number[], count: number): Promise<ToolDefinition[]> {
+	async search(queryEmbedding: number[], count: number, threshold: number = 0): Promise<ToolDefinition[]> {
 		if (this.tools.length === 0)
 			return []
 
@@ -44,6 +44,7 @@ export class InMemoryStore implements ToolStore {
 
 		return scoredTools
 			.sort((a, b) => b.similarity - a.similarity)
+			.filter(item => item.similarity >= threshold)
 			.slice(0, count)
 			.map(item => item.definition)
 	}

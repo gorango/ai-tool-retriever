@@ -15,7 +15,10 @@ export interface ToolStore {
 
 	/**
 	 * Searches the store for the most relevant tools based on a query embedding.
+	 * @param queryEmbedding The vector representation of the user's query.
+	 * @param count The maximum number of tools to return.
+	 * @param threshold The minimum similarity score (0-1) required for a tool to be included.
 	 * @returns A promise that resolves to an array of relevant tool definitions.
 	 */
-	search: (queryEmbedding: number[], count: number) => Promise<ToolDefinition[]>
+	search: (queryEmbedding: number[], count: number, threshold: number) => Promise<ToolDefinition[]>
 }

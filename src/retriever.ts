@@ -5,9 +5,14 @@ import { EmbeddingService } from './embedding/service'
 import { InMemoryStore } from './store/in-memory'
 import { extractToolsFromQuerySyntax } from './utils'
 
-interface RetrieverOptions {
+interface ToolRetrieverOptions {
 	tools: ToolDefinition[]
 	store?: ToolStore
+}
+
+interface RetrieveOptions {
+	matchCount?: number
+	matchThreshold?: number
 }
 
 export class ToolRetriever {
@@ -23,7 +28,7 @@ export class ToolRetriever {
 	/**
 	 * Creates and initializes a ToolRetriever instance.
 	 */
-	public static async create(options: RetrieverOptions): Promise<ToolRetriever> {
+	public static async create(options: ToolRetrieverOptions): Promise<ToolRetriever> {
 		const store = options.store || (await InMemoryStore.create())
 		const retriever = new ToolRetriever(store, options.tools)
 		retriever.embeddingService = await EmbeddingService.getInstance()
@@ -35,11 +40,12 @@ export class ToolRetriever {
 
 	public async retrieve(
 		userQuery: string,
-		matchCount: number = 12,
+		options: RetrieveOptions = {},
 	): Promise<Record<string, Tool<any, any>>> {
+		const { matchCount = 12, matchThreshold = 0 } = options
 		const queryEmbedding = await this.embeddingService.getFloatEmbedding(userQuery)
 
-		const semanticallyMatched = await this.store.search(queryEmbedding, matchCount)
+		const semanticallyMatched = await this.store.search(queryEmbedding, matchCount, matchThreshold) // <-- PASS THRESHOLD
 		const explicitlyMentioned = extractToolsFromQuerySyntax(userQuery)
 
 		const finalTools = new Map<string, Tool<any, any>>()
