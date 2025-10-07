@@ -1,6 +1,6 @@
 # AI Tool Retriever
 
-A lightweight, zero-dependency library for dynamically selecting the most relevant tools for your Vercel AI SDK-powered agent based on user queries.
+A lightweight, zero-dependency library for dynamically selecting the most relevant tools for your [AI SDK](https://ai-sdk.dev/)-powered agent based on user queries.
 
 It uses in-memory semantic search to find the best tools for the job, ensuring your AI model receives only the necessary tools, saving context space and improving accuracy.
 
@@ -102,6 +102,17 @@ To use a different vector database, implement the `ToolStore` interface. The `sy
 
 For persistent stores (like Supabase or Pinecone), it's crucial to implement `sync` efficiently to avoid re-calculating embeddings for unchanged tools on every application restart. The library provides a `createToolContentHash` utility to help with this.
 
+> **A Note on Embedding Quality**
+> The quality of the semantic search is highly dependent on the text used to generate the embedding. For best results, it is recommended to create a single, rich string for each tool that includes its name, description, and any relevant keywords.
+>
+> The default `InMemoryStore` uses the following format:
+>
+> ```
+> `${definition.name}: ${definition.tool.description}. Keywords: ${definition.keywords?.join(', ')}`
+> ```
+>
+> Replicating this pattern in your custom store will ensure you get the best possible search accuracy.
+
 #### Example: A Robust Supabase Store
 
 This example demonstrates a persistent store that only generates embeddings for new or changed tools, making it highly efficient.
@@ -173,15 +184,29 @@ class SupabaseStore implements ToolStore {
 
 	async sync(toolDefinitions: ToolDefinition[]): Promise<void> {
 		console.log("Syncing tools with Supabase...");
-		const { data: existing } = await sb
+
+		const { data: existingTools } = await sb
 			.from("ai_tools")
 			.select("name, content_hash");
+
 		const existingToolsMap = new Map(
 			existing!.map((t) => [t.name, t.content_hash]),
 		);
 
+		const currentToolNames = new Set(toolDefinitions.map((t) => t.name));
+
+		const toolsToDelete = Array.from(existingToolsMap.keys()).filter(
+			(name) => !currentToolNames.has(name),
+		);
+
+		if (toolsToDelete.length > 0) {
+			console.log(`Removing ${toolsToDelete.length} obsolete tools...`);
+			await sb.from("ai_tools").delete().in("name", toolsToDelete);
+		}
+
 		const toolsToUpdate = toolDefinitions.filter((def) => {
 			const newHash = createToolContentHash(def);
+			// Update if the tool is new or if its content has changed
 			return existingToolsMap.get(def.name) !== newHash;
 		});
 
@@ -189,9 +214,12 @@ class SupabaseStore implements ToolStore {
 			console.log(
 				`Found ${toolsToUpdate.length} new or updated tools to embed.`,
 			);
-			const texts = toolsToUpdate.map(
-				(t) => `${t.name}: ${t.tool.description}`,
-			);
+			const texts = toolsToUpdate.map((t) => {
+				// Best practice: combine name, description, and keywords for a rich embedding
+				const description = t.tool.description || "";
+				const keywords = t.keywords?.join(", ") || "";
+				return `${t.name}: ${description}. Keywords: ${keywords}`.trim();
+			});
 			const embeddings =
 				await this.embeddingService.getFloatEmbeddingsBatch(texts);
 
