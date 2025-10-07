@@ -1,6 +1,7 @@
 import type { Tool } from 'ai'
 import type { ToolStore } from './store/interface'
 import type { ToolDefinition } from './types'
+import { EmbeddingService } from './embedding/service'
 import { extractToolsFromQuerySyntax } from './utils'
 
 interface ToolRetrieverOptions {
@@ -22,7 +23,7 @@ interface RetrieveOptions {
 export class ToolRetriever {
 	private store: ToolStore
 	private allTools: Map<string, ToolDefinition>
-	private embeddingService: any // `any` or a specific interface
+	private embeddingService!: EmbeddingService
 
 	private constructor(store: ToolStore, tools: ToolDefinition[]) {
 		this.store = store
@@ -45,7 +46,6 @@ export class ToolRetriever {
 		options: RetrieveOptions = {},
 	): Promise<Record<string, Tool<any, any>>> {
 		if (!this.embeddingService) {
-			const { EmbeddingService } = await import('./embedding/service')
 			this.embeddingService = await EmbeddingService.getInstance()
 		}
 		const { matchCount = 12, matchThreshold = 0, strict = false } = options
@@ -56,11 +56,9 @@ export class ToolRetriever {
 
 		const finalTools = new Map<string, Tool<any, any>>()
 
-		// Add semantic results
 		for (const definition of semanticallyMatched)
 			finalTools.set(definition.name, definition.tool)
 
-		// Add explicit results, overwriting is fine
 		for (const toolName of explicitlyMentioned) {
 			const definition = this.allTools.get(toolName)
 			if (definition) {
