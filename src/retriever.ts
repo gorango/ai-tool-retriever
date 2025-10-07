@@ -1,12 +1,13 @@
 import type { Tool } from 'ai'
+import type { EmbeddingProvider } from './embedding/interface'
 import type { ToolStore } from './store/interface'
 import type { ToolDefinition } from './types'
-import { EmbeddingService } from './embedding/service'
 import { extractToolsFromQuerySyntax } from './utils'
 
 interface ToolRetrieverOptions {
 	tools: ToolDefinition[]
 	store?: ToolStore
+	embeddingProvider?: EmbeddingProvider
 }
 
 interface RetrieveOptions {
@@ -23,20 +24,23 @@ interface RetrieveOptions {
 export class ToolRetriever {
 	private store: ToolStore
 	private allTools: Map<string, ToolDefinition>
-	private embeddingService!: EmbeddingService
+	private embeddingProvider: EmbeddingProvider
 
-	private constructor(store: ToolStore, tools: ToolDefinition[]) {
+	private constructor(store: ToolStore, tools: ToolDefinition[], embeddingProvider: EmbeddingProvider) {
 		this.store = store
 		this.allTools = new Map(tools.map(t => [t.name, t]))
+		this.embeddingProvider = embeddingProvider
 	}
 
 	public static async create(options: ToolRetrieverOptions): Promise<ToolRetriever> {
-		let store = options.store
-		if (!store) {
-			const { InMemoryStore } = await import('./store/in-memory')
-			store = await InMemoryStore.create()
-		}
-		const retriever = new ToolRetriever(store, options.tools)
+		const embeddingProvider = options.embeddingProvider
+			|| await (await import('./embedding/service')).EmbeddingService.getInstance()
+
+		const store = options.store
+			|| (await import('./store/in-memory')).InMemoryStore.create({ embeddingProvider })
+
+		const retriever = new ToolRetriever(store, options.tools, embeddingProvider)
+
 		await retriever.store.sync(options.tools)
 		return retriever
 	}
@@ -45,12 +49,9 @@ export class ToolRetriever {
 		userQuery: string,
 		options: RetrieveOptions = {},
 	): Promise<Record<string, Tool<any, any>>> {
-		if (!this.embeddingService) {
-			this.embeddingService = await EmbeddingService.getInstance()
-		}
-		const { matchCount = 12, matchThreshold = 0, strict = false } = options
-		const queryEmbedding = await this.embeddingService.getFloatEmbedding(userQuery)
+		const queryEmbedding = await this.embeddingProvider.getFloatEmbedding(userQuery)
 
+		const { matchCount = 12, matchThreshold = 0, strict = false } = options
 		const semanticallyMatched = await this.store.search(queryEmbedding, matchCount, matchThreshold)
 		const explicitlyMentioned = extractToolsFromQuerySyntax(userQuery)
 

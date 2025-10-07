@@ -1,23 +1,27 @@
+import type { EmbeddingProvider } from '../embedding/interface'
 import type { ToolDefinition } from '../types'
 import type { ToolStore, ToolWithMetadata } from './interface'
-import { EmbeddingService } from '../embedding/service'
 import { cosineSimilarity, createToolContentHash } from '../utils'
+
+interface InMemoryStoreOptions {
+	embeddingProvider: EmbeddingProvider
+}
 
 export class InMemoryStore implements ToolStore {
 	private tools: ToolWithMetadata[] = []
-	private embeddingService!: EmbeddingService
+	private embeddingProvider: EmbeddingProvider
 
 	// private constructor is used to enforce async initialization via `create`.
-	private constructor() { }
+	private constructor(options: InMemoryStoreOptions) {
+		this.embeddingProvider = options.embeddingProvider
+	}
 
 	/**
 	 * Creates and initializes an instance of InMemoryStore.
-	 * This is required because the EmbeddingService is loaded asynchronously.
+	 * It requires an embedding provider to function.
 	 */
-	public static async create(): Promise<InMemoryStore> {
-		const store = new InMemoryStore()
-		store.embeddingService = await EmbeddingService.getInstance()
-		return store
+	public static create(options: InMemoryStoreOptions): InMemoryStore {
+		return new InMemoryStore(options)
 	}
 
 	async sync(toolDefinitions: ToolDefinition[]): Promise<void> {
@@ -32,10 +36,9 @@ export class InMemoryStore implements ToolStore {
 			return `${definition.name}: ${description}. Keywords: ${keywords}`.trim()
 		})
 
-		const embeddings = await this.embeddingService.getFloatEmbeddingsBatch(textsToEmbed)
+		// It uses the provider it received during creation
+		const embeddings = await this.embeddingProvider.getFloatEmbeddingsBatch(textsToEmbed)
 
-		// The InMemoryStore always rebuilds, so the logic is simple.
-		// A persistent store would have more complex logic here (see below).
 		this.tools = toolDefinitions.map((definition, i) => ({
 			definition,
 			embedding: embeddings[i],

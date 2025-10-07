@@ -1,4 +1,5 @@
 import type { FeatureExtractionPipeline } from '@xenova/transformers'
+import type { EmbeddingProvider } from './interface'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -9,7 +10,7 @@ type GlobalWithPipeline = typeof globalThis & {
 	[PIPELINE_PROMISE_SYMBOL]?: Promise<FeatureExtractionPipeline>
 }
 
-export class EmbeddingService {
+export class EmbeddingService implements EmbeddingProvider {
 	private static instance?: EmbeddingService
 	private static initializationPromise: Promise<EmbeddingService> | null = null
 	private pipe: FeatureExtractionPipeline

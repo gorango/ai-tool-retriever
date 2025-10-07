@@ -1,11 +1,17 @@
 import type { ToolDefinition } from '../types'
 
 export interface ToolWithMetadata {
-	/* Keywords and additional search terms provided by the user */
+	/*
+	 * Keywords and additional search terms provided by the user
+	 */
 	definition: ToolDefinition
-	/* The embedding vector for this tool */
+	/*
+	 * The embedding vector for this tool
+	 */
 	embedding: number[]
-	/** A hash of the tool's content (description, keywords, etc.) to detect changes. */
+	/**
+	 * A hash of the tool's content (description, keywords, etc.) to detect changes.
+	 */
 	contentHash: string
 }
 

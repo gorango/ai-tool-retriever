@@ -1,3 +1,4 @@
+import type { EmbeddingProvider } from '../embedding/interface'
 import type { ToolDefinition } from '../types'
 import { tool as createTool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,6 +24,20 @@ const embeddingA = [1, 0, 0, 0]
 const embeddingB = [0, 1, 0, 0]
 const queryEmbedding = [0.9, 0.1, 0, 0]
 
+const mockEmbeddingProvider: EmbeddingProvider = {
+	dimensions: 4,
+	getFloatEmbedding: vi.fn().mockResolvedValue([0, 0, 0, 0]),
+	getFloatEmbeddingsBatch: vi.fn().mockImplementation(async (texts: string[]) => {
+		return texts.map((text) => {
+			if (text.includes('toolA'))
+				return embeddingA
+			if (text.includes('toolB'))
+				return embeddingB
+			return [0, 0, 0, 0]
+		})
+	}),
+}
+
 vi.mock('../embedding/service', () => ({
 	EmbeddingService: {
 		getInstance: vi.fn().mockResolvedValue({
@@ -45,8 +60,8 @@ describe('InMemoryStore', () => {
 	let store: InMemoryStore
 
 	beforeEach(async () => {
-		store = await InMemoryStore.create()
 		vi.clearAllMocks()
+		store = InMemoryStore.create({ embeddingProvider: mockEmbeddingProvider })
 	})
 
 	it('should correctly sync tools and generate their metadata', async () => {

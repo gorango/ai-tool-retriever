@@ -1,18 +1,19 @@
 # AI Tool Retriever
 
-A lightweight, zero-dependency library for dynamically selecting the most relevant tools for your [AI SDK](https://ai-sdk.dev/)-powered agent based on user queries.
+A lightweight, extensible library for dynamically selecting the most relevant tools for your [AI SDK](https://ai-sdk.dev/)-powered agent based on user queries.
 
-It uses in-memory semantic search to find the best tools for the job, ensuring your AI model receives only the necessary tools, saving context space and improving accuracy.
+It uses semantic search to find the best tools for the job, ensuring your AI model receives only the necessary tools, saving context space and improving accuracy.
 
 ### Features
 
 - **Dynamic Tool Selection**: Automatically selects relevant tools from a larger collection based on semantic similarity.
-- **In-Memory Search**: No need for an external vector database. It uses `@xenova/transformers` to run a state-of-the-art sentence transformer model directly in your Node.js environment.
+- **Embedding-Powered Search**: No need for an external vector database for simple use cases. It generates vector embeddings for your tools and queries, then finds the most relevant tools using in-memory cosine similarity search.
+- **Pluggable Embedding Models**: Defaults to a high-quality local model via `@xenova/transformers`, but allows you to bring your own embedding provider (e.g., OpenAI, Cohere) by implementing a simple `EmbeddingProvider` interface.
+- **Extensible Vector Storage**: Bring your own vector store (e.g., Supabase, Pinecone, Redis) by implementing a simple `ToolStore` interface.
 - **Keyword Enhanced**: Improve search accuracy by adding custom `keywords` to your tool definitions.
 - **Explicit Tool Forcing**: Users can force tool inclusion with a simple `[toolName]` syntax in their query.
 - **Configurable Retrieval**: Fine-tune results with similarity thresholds and control behavior for missing tools.
 - **Idempotent Syncing**: Built-in content hashing utilities to efficiently sync tools with persistent vector stores, avoiding redundant embedding calculations.
-- **Extensible**: Bring your own vector store (e.g., Supabase, Pinecone, Redis) by implementing a simple `ToolStore` interface.
 - **TypeScript Native**: Fully written in TypeScript with comprehensive type definitions.
 
 ### Installation
@@ -21,11 +22,13 @@ It uses in-memory semantic search to find the best tools for the job, ensuring y
 pnpm add ai-tool-retriever @xenova/transformers
 ```
 
-> **Note:** `@xenova/transformers` is a `peerDependency`. It is required for the default in-memory functionality. Advanced users who provide their own custom vector store do not need to install it and can safely ignore any peer dependency warnings from the package manager.
+> **Note:** `@xenova/transformers` is a `peerDependency`. It is required for the default local embedding functionality. If you provide your own custom `embeddingProvider` (e.g., to use an API like OpenAI), you do not need to install it and can safely ignore any peer dependency warnings from the package manager.
 
 ### Quick Start
 
-The first time you use the retriever, it will download and cache the embedding model (`~260MB`). This is a one-time operation.
+The first time you use the retriever with the default settings, it will download and cache the embedding model (`~260MB`). This is a one-time operation.
+
+> **Note:** You can also [bring your own embedding provider](#using-a-custom-embedding-provider) by implementing a simple `EmbeddingProvider` interface.
 
 ```typescript
 import { ToolRetriever, ToolDefinition } from "ai-tool-retriever";
@@ -96,28 +99,83 @@ const relevantTools = await retriever.retrieve(
 // This would throw: Error: Tool 'aMissingTool' from query syntax not found.
 ```
 
-### Custom Vector Store
+#### Using a Custom Embedding Provider
+
+The retriever's real power comes from its flexibility. You can easily swap the default local embedding model for any external service, like the OpenAI Embeddings API, by creating your own `EmbeddingProvider`.
+
+First, you would implement the `EmbeddingProvider` interface (you may need to add `openai` to your project):
+
+```typescript
+// src/my-openai-embedding-provider.ts
+import type { EmbeddingProvider } from "ai-tool-retriever/embedding";
+import OpenAI from "openai";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const EMBEDDING_MODEL = "text-embedding-3-small";
+
+export class OpenAIEmbeddingProvider implements EmbeddingProvider {
+	// The vector dimension of the model you are using.
+	public readonly dimensions = 1536; // for text-embedding-3-small
+
+	async getFloatEmbedding(text: string): Promise<number[]> {
+		const response = await openai.embeddings.create({
+			model: EMBEDDING_MODEL,
+			input: text,
+		});
+		return response.data.embedding;
+	}
+
+	async getFloatEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+		const response = await openai.embeddings.create({
+			model: EMBEDDING_MODEL,
+			input: texts,
+		});
+		return response.data.map((d) => d.embedding);
+	}
+}
+```
+
+Then, simply pass an instance of your custom provider during the retriever's creation.
+
+```typescript
+// index.ts
+import { ToolRetriever } from "ai-tool-retriever";
+import { OpenAIEmbeddingProvider } from "./my-openai-embedding-provider";
+
+const myTools = [
+	/* ... your tool definitions ... */
+];
+
+const retriever = await ToolRetriever.create({
+	tools: myTools,
+	embeddingProvider: new OpenAIEmbeddingProvider(),
+});
+
+// Now, all embedding operations will use the OpenAI API instead of the local model.
+const relevantTools = await retriever.retrieve(
+	"What's the weather like in SF?",
+);
+```
+
+> **Important**: When using a custom embedding provider with a persistent vector store (like Supabase), ensure the vector column in your database is configured with the correct dimensions (e.g., `VECTOR(1536)` for OpenAI's `text-embedding-3-small`).
+
+#### Using a Custom Vector Store
 
 To use a different vector database, implement the `ToolStore` interface. The `sync` method is called once during initialization to ensure the vector database is up-to-date with your tool definitions.
 
+> **Best Practice: Crafting Text for High-Quality Embeddings**
+>
+> The quality of the semantic search is highly dependent on the text used to generate the embedding for each tool. For best results, your `ToolStore`'s `sync` method should create a single, rich string that includes the tool's name, its detailed description, and any relevant keywords.
+>
+> The default `InMemoryStore` uses the following format as its best practice, and replicating this pattern in your custom store will ensure you get great search accuracy:
+>
+> ```ts
+> const textToEmbed = `${definition.name}: ${definition.tool.description}. Keywords: ${definition.keywords?.join(", ")}`.trim();
+> ```
+
 For persistent stores (like Supabase or Pinecone), it's crucial to implement `sync` efficiently to avoid re-calculating embeddings for unchanged tools on every application restart. The library provides a `createToolContentHash` utility to help with this.
 
-> **A Note on Embedding Quality**
-> The quality of the semantic search is highly dependent on the text used to generate the embedding. For best results, it is recommended to create a single, rich string for each tool that includes its name, description, and any relevant keywords.
->
-> The default `InMemoryStore` uses the following format:
->
-> ```
-> `${definition.name}: ${definition.tool.description}. Keywords: ${definition.keywords?.join(', ')}`
-> ```
->
-> Replicating this pattern in your custom store will ensure you get the best possible search accuracy.
-
-#### Example: A Robust Supabase Store
-
-This example demonstrates a persistent store that only generates embeddings for new or changed tools, making it highly efficient.
-
-First, you would need a table and a search function in Supabase:
+First, you would need a table and a search function in Supabase. Notice how the vector dimensions in the SQL must match the embedding model you are using.
 
 ```sql
 -- 1. Create a table to store tool embeddings
@@ -125,11 +183,14 @@ CREATE TABLE ai_tools (
   name TEXT PRIMARY KEY,
   description TEXT,
   content_hash TEXT NOT NULL,
-  embedding VECTOR(384) -- Dimension of Xenova/all-MiniLM-L6-v2
+  -- Dimension of Xenova/all-MiniLM-L6-v2.
+  -- CHANGE THIS to e.g. VECTOR(1536) if using OpenAI's text-embedding-3-small
+  embedding VECTOR(384)
 );
 
 -- 2. Create a function for vector similarity search
 CREATE OR REPLACE FUNCTION match_ai_tools (
+  -- This dimension MUST match the table's embedding column
   query_embedding VECTOR(384),
   match_threshold FLOAT,
   match_count INT
@@ -178,6 +239,8 @@ class SupabaseStore implements ToolStore {
 		tools: ToolDefinition[],
 	): Promise<SupabaseStore> {
 		const store = new SupabaseStore(tools);
+		// Note: This example assumes the default EmbeddingService is used.
+		// A more advanced implementation would accept an EmbeddingProvider.
 		store.embeddingService = await EmbeddingService.getInstance();
 		return store;
 	}
@@ -215,7 +278,6 @@ class SupabaseStore implements ToolStore {
 				`Found ${toolsToUpdate.length} new or updated tools to embed.`,
 			);
 			const texts = toolsToUpdate.map((t) => {
-				// Best practice: combine name, description, and keywords for a rich embedding
 				const description = t.tool.description || "";
 				const keywords = t.keywords?.join(", ") || "";
 				return `${t.name}: ${description}. Keywords: ${keywords}`.trim();
@@ -257,7 +319,9 @@ class SupabaseStore implements ToolStore {
 
 ### Advanced: Managing the Embedding Model Lifecycle
 
-The `ai-tool-retriever` is designed for efficiency. When you first use the retriever, it loads the embedding model (`~260MB`) into memory and keeps it there for the lifetime of your application process. This singleton pattern ensures that the model is not wastefully reloaded on every request, making subsequent retrievals very fast.
+> **Note:** This section applies only when using the default local embedding model (`@xenova/transformers`). Custom embedding providers are responsible for their own resource management.
+
+The library is designed for efficiency. When you first use the retriever, it loads the embedding model (`~260MB`) into memory and keeps it there for the lifetime of your application process. This singleton pattern ensures that the model is not wastefully reloaded on every request, making subsequent retrievals very fast.
 
 However, in some scenarios, you might want to manually unload the model to free up memory. For this, the library exposes a static `dispose` method.
 
@@ -265,13 +329,14 @@ However, in some scenarios, you might want to manually unload the model to free 
 
 You can call `EmbeddingService.dispose()` to remove the model from memory and reset the service. This is an `async` operation.
 
-````typescript
+```typescript
 import { EmbeddingService } from "ai-tool-retriever/utils";
 
 // This will unload the model and free up its memory.
-await EmbeddingService.dispose();```
+await EmbeddingService.dispose();
+```
 
-> **Note:** You will need to import from the `/utils` path to access the `EmbeddingService`. After calling `dispose`, the next call to `retriever.retrieve()` will re-initialize the model, which will take a moment.
+> **Note:** You will need to import from the `/utils` path to access the `EmbeddingService`. After calling `dispose`, the next call to `retriever.retrieve()` using the default provider will re-initialize the model, which will take a moment.
 
 #### Use Case 1: Automated Tests (Vitest/Jest)
 
@@ -292,7 +357,7 @@ describe("My Application Logic", () => {
 		// Your test logic here...
 	});
 });
-````
+```
 
 #### Use Case 2: Graceful Application Shutdown
 
