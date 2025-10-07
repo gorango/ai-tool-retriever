@@ -21,6 +21,8 @@ It uses in-memory semantic search to find the best tools for the job, ensuring y
 pnpm add ai-tool-retriever @xenova/transformers
 ```
 
+> **Note:** `@xenova/transformers` is a `peerDependency`. It is required for the default in-memory functionality. Advanced users who provide their own custom vector store do not need to install it and can safely ignore any peer dependency warnings from the package manager.
+
 ### Quick Start
 
 The first time you use the retriever, it will download and cache the embedding model (`~260MB`). This is a one-time operation.

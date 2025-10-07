@@ -1,8 +1,6 @@
 import type { Tool } from 'ai'
 import type { ToolStore } from './store/interface'
 import type { ToolDefinition } from './types'
-import { EmbeddingService } from './embedding/service'
-import { InMemoryStore } from './store/in-memory'
 import { extractToolsFromQuerySyntax } from './utils'
 
 interface ToolRetrieverOptions {
@@ -24,22 +22,20 @@ interface RetrieveOptions {
 export class ToolRetriever {
 	private store: ToolStore
 	private allTools: Map<string, ToolDefinition>
-	private embeddingService!: EmbeddingService
+	private embeddingService: any // `any` or a specific interface
 
 	private constructor(store: ToolStore, tools: ToolDefinition[]) {
 		this.store = store
 		this.allTools = new Map(tools.map(t => [t.name, t]))
 	}
 
-	/**
-	 * Creates and initializes a ToolRetriever instance.
-	 */
 	public static async create(options: ToolRetrieverOptions): Promise<ToolRetriever> {
-		const store = options.store || (await InMemoryStore.create())
+		let store = options.store
+		if (!store) {
+			const { InMemoryStore } = await import('./store/in-memory')
+			store = await InMemoryStore.create()
+		}
 		const retriever = new ToolRetriever(store, options.tools)
-		retriever.embeddingService = await EmbeddingService.getInstance()
-
-		// Asynchronously index the tools
 		await retriever.store.sync(options.tools)
 		return retriever
 	}
@@ -48,6 +44,10 @@ export class ToolRetriever {
 		userQuery: string,
 		options: RetrieveOptions = {},
 	): Promise<Record<string, Tool<any, any>>> {
+		if (!this.embeddingService) {
+			const { EmbeddingService } = await import('./embedding/service')
+			this.embeddingService = await EmbeddingService.getInstance()
+		}
 		const { matchCount = 12, matchThreshold = 0, strict = false } = options
 		const queryEmbedding = await this.embeddingService.getFloatEmbedding(userQuery)
 
