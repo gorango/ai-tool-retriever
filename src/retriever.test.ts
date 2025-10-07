@@ -1,35 +1,30 @@
 import type { ToolStore } from './store/interface'
 import type { ToolDefinition } from './types'
 import { tool as createTool } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { ToolRetriever } from './retriever'
 
-// Mock tools using the new ToolDefinition structure
 const weatherToolDef: ToolDefinition = {
 	name: 'getWeather',
-	tool: createTool({
-		description: 'Get the weather',
-		inputSchema: z.object({ city: z.string() }),
-	}),
+	tool: createTool({ description: 'Get the weather', inputSchema: z.object({ city: z.string() }) }),
 }
-
 const newsToolDef: ToolDefinition = {
 	name: 'getNews',
-	tool: createTool({
-		description: 'Get the news',
-		inputSchema: z.object({ topic: z.string() }),
-	}),
+	tool: createTool({ description: 'Get the news', inputSchema: z.object({ topic: z.string() }) }),
 }
 
-// Mock Store to work with ToolDefinition
 const mockStore: ToolStore = {
 	add: vi.fn().mockResolvedValue(undefined),
-	search: vi.fn().mockImplementation(async (embedding, count) => {
-		if (embedding[0] === 1)
+	search: vi.fn().mockImplementation(async (embedding, _count, threshold) => {
+		// Simulate finding weather tool if embedding[0] is high
+		if (embedding[0] > (threshold || 0))
 			return [weatherToolDef]
-		if (embedding[1] === 1)
+
+		// Simulate finding news tool if embedding[1] is high
+		if (embedding[1] > (threshold || 0))
 			return [newsToolDef]
+
 		return []
 	}),
 }
@@ -37,18 +32,23 @@ const mockStore: ToolStore = {
 vi.mock('./embedding/service', () => ({
 	EmbeddingService: {
 		getInstance: vi.fn().mockResolvedValue({
+			// This is used by the retriever to embed the user query
 			getFloatEmbedding: vi.fn().mockImplementation(async (query: string) => {
 				if (query.includes('weather'))
-					return [1, 0]
+					return [0.9, 0.1]
 				if (query.includes('news'))
-					return [0, 1]
+					return [0.1, 0.9]
 				return [0, 0]
+			}),
+			// This is used by the default InMemoryStore during .create()
+			getFloatEmbeddingsBatch: vi.fn().mockImplementation(async (texts: string[]) => {
+				return texts.map(_text => [0, 0, 0, 0]) // Return a default embedding for initialization
 			}),
 		}),
 	},
 }))
 
-describe('ToolRetriever', async () => {
+describe('ToolRetriever', () => {
 	it('should retrieve tools based on semantic similarity', async () => {
 		const retriever = await ToolRetriever.create({ tools: [weatherToolDef, newsToolDef], store: mockStore })
 		const result = await retriever.retrieve('What is the weather in SF?')
@@ -60,5 +60,48 @@ describe('ToolRetriever', async () => {
 		const retriever = await ToolRetriever.create({ tools: [weatherToolDef, newsToolDef], store: mockStore })
 		const result = await retriever.retrieve('Some query with [getNews] explicitly mentioned')
 		expect(Object.keys(result)).toContain('getNews')
+	})
+
+	it('should combine semantic and explicit results', async () => {
+		const retriever = await ToolRetriever.create({ tools: [weatherToolDef, newsToolDef], store: mockStore })
+		const result = await retriever.retrieve('What is the weather like? Also get me the news [getNews]')
+		expect(Object.keys(result)).toEqual(['getWeather', 'getNews'])
+	})
+
+	it('should handle queries with no semantic matches gracefully', async () => {
+		const retriever = await ToolRetriever.create({ tools: [weatherToolDef], store: mockStore })
+		const result = await retriever.retrieve('a query with no matching terms')
+		expect(Object.keys(result).length).toBe(0)
+	})
+
+	describe('strict mode', () => {
+		let consoleWarnSpy: any
+
+		beforeEach(() => {
+			consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { })
+		})
+
+		afterEach(() => {
+			consoleWarnSpy.mockRestore()
+		})
+
+		it('should throw an error for a missing explicit tool when strict is true', async () => {
+			const retriever = await ToolRetriever.create({ tools: [weatherToolDef] })
+			const query = 'Find me the weather and [aMissingTool]'
+			await expect(retriever.retrieve(query, { strict: true })).rejects.toThrow(
+				'Tool \'aMissingTool\' from query syntax not found.',
+			)
+		})
+
+		it('should warn and not throw for a missing explicit tool by default (strict: false)', async () => {
+			const retriever = await ToolRetriever.create({ tools: [weatherToolDef] })
+			const query = 'Find me the weather and [aMissingTool]'
+
+			// Ensure it does not throw
+			await expect(retriever.retrieve(query)).resolves.not.toThrow()
+
+			// Ensure it warns
+			expect(consoleWarnSpy).toHaveBeenCalledWith('Tool \'aMissingTool\' from query syntax not found.')
+		})
 	})
 })

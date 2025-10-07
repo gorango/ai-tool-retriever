@@ -70,4 +70,20 @@ export class EmbeddingService {
 		const result = await this.pipe(text, { pooling: 'mean', normalize: true })
 		return Array.from(result.data as Float32Array)
 	}
+
+	/**
+	 * Generates float embeddings for a batch of texts.
+	 * @param texts The array of texts to embed.
+	 * @returns A promise that resolves to an array of float vectors.
+	 */
+	public async getFloatEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+		const results = await this.pipe(texts, { pooling: 'mean', normalize: true })
+		// The result for a batch is a single Tensor. We need to slice it.
+		const embeddings: number[][] = []
+		for (let i = 0; i < results.dims[0]; i++) {
+			const embedding = Array.from(results.slice([i, 0], [i + 1, -1]).data as Float32Array)
+			embeddings.push(embedding)
+		}
+		return embeddings
+	}
 }

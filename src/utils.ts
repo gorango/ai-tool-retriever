@@ -39,10 +39,13 @@ export function extractToolsFromQuerySyntax(query: string): string[] {
 	const toolNames = new Set<string>()
 	const matches = query.matchAll(toolSyntaxRegex)
 	for (const match of matches) {
-		// The tool name is in the first capture group
-		const toolName = match[1]
+		// The tool name is in the first capture group.
+		// Trim it first to handle cases like `[ myTool ]` or `[ ]`.
+		const toolName = match[1]?.trim()
+
+		// Now, if toolName is an empty string after trimming, this condition is correctly false.
 		if (toolName)
-			toolNames.add(toolName.trim())
+			toolNames.add(toolName)
 	}
 	return Array.from(toolNames)
 }

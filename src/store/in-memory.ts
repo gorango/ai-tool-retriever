@@ -21,16 +21,21 @@ export class InMemoryStore implements ToolStore {
 	}
 
 	async add(toolDefinitions: ToolDefinition[]): Promise<void> {
-		const newToolsWithMetadata: ToolWithMetadata[] = []
-		for (const definition of toolDefinitions) {
+		if (toolDefinitions.length === 0)
+			return
+
+		const textsToEmbed = toolDefinitions.map((definition) => {
 			const description = definition.tool.description || ''
 			const keywords = definition.keywords?.join(', ') || ''
-			const textToEmbed = `${definition.name}: ${description}. Keywords: ${keywords}`.trim()
+			return `${definition.name}: ${description}. Keywords: ${keywords}`.trim()
+		})
 
-			const embedding = await this.embeddingService.getFloatEmbedding(textToEmbed)
-			newToolsWithMetadata.push({ definition, embedding })
-		}
-		this.tools = newToolsWithMetadata
+		const embeddings = await this.embeddingService.getFloatEmbeddingsBatch(textsToEmbed)
+
+		this.tools = toolDefinitions.map((definition, i) => ({
+			definition,
+			embedding: embeddings[i],
+		}))
 	}
 
 	async search(queryEmbedding: number[], count: number, threshold: number = 0): Promise<ToolDefinition[]> {
