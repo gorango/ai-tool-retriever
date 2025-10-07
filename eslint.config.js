@@ -8,17 +8,13 @@ export default antfu(
 			semi: false,
 		},
 		ignores: [
-			'**/*.md',
 			'**/*.d.ts',
-			'pnpm-workspace.yaml',
-			'libs/core/db/schema.ts', // exported from supabase
+			'**/*.md',
 		],
 	},
 	{
 		rules: {
 			'no-console': 'off',
-			'unused-imports/no-unused-vars': 'off',
-			'unused-imports/no-unused-imports': 'off',
 			'test/prefer-lowercase-title': 'off',
 		},
 	},
