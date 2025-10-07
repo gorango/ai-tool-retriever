@@ -10,10 +10,11 @@ type GlobalWithPipeline = typeof globalThis & {
 }
 
 export class EmbeddingService {
-	private static instance: EmbeddingService
+	private static instance?: EmbeddingService
 	private static initializationPromise: Promise<EmbeddingService> | null = null
 	private pipe: FeatureExtractionPipeline
 	public readonly dimensions = 384 // Dimension of the all-MiniLM-L6-v2 model
+
 	private constructor(pipe: FeatureExtractionPipeline) {
 		this.pipe = pipe
 	}
@@ -38,6 +39,32 @@ export class EmbeddingService {
 		}
 
 		return this.initializationPromise
+	}
+
+	/**
+	 * Disposes of the model pipeline and cleans up the singleton instance.
+	 * Useful for resource management in tests or serverless environments.
+	 */
+	public static async dispose(): Promise<void> {
+		const _global = globalThis as GlobalWithPipeline
+		const pipelinePromise = _global[PIPELINE_PROMISE_SYMBOL]
+
+		if (pipelinePromise) {
+			try {
+				const pipelineInstance = await pipelinePromise
+				await pipelineInstance.dispose()
+				console.log('Embedding model pipeline disposed successfully.')
+			}
+			catch (error) {
+				console.error('Error disposing the embedding model pipeline:', error)
+			}
+			finally {
+				// Clear the global symbol and reset the singleton state
+				delete _global[PIPELINE_PROMISE_SYMBOL]
+				this.instance = undefined
+				this.initializationPromise = null
+			}
+		}
 	}
 
 	/**

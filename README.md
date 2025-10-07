@@ -226,3 +226,63 @@ class SupabaseStore implements ToolStore {
 	}
 }
 ```
+
+### Advanced: Managing the Embedding Model Lifecycle
+
+The `ai-tool-retriever` is designed for efficiency. When you first use the retriever, it loads the embedding model (`~260MB`) into memory and keeps it there for the lifetime of your application process. This singleton pattern ensures that the model is not wastefully reloaded on every request, making subsequent retrievals very fast.
+
+However, in some scenarios, you might want to manually unload the model to free up memory. For this, the library exposes a static `dispose` method.
+
+#### `EmbeddingService.dispose()`
+
+You can call `EmbeddingService.dispose()` to remove the model from memory and reset the service. This is an `async` operation.
+
+````typescript
+import { EmbeddingService } from "ai-tool-retriever/utils";
+
+// This will unload the model and free up its memory.
+await EmbeddingService.dispose();```
+
+> **Note:** You will need to import from the `/utils` path to access the `EmbeddingService`. After calling `dispose`, the next call to `retriever.retrieve()` will re-initialize the model, which will take a moment.
+
+#### Use Case 1: Automated Tests (Vitest/Jest)
+
+The most common use case is cleaning up after tests. In test runners that use a long-running process with a watch mode (like Vitest and Jest), the model can remain in memory between test runs. Using `dispose` in a teardown hook ensures each test suite runs in a clean environment.
+
+```typescript
+// In your test file (e.g., retriever.test.ts)
+import { afterAll, describe, it } from "vitest";
+import { EmbeddingService } from "ai-tool-retriever/utils";
+
+describe("My Application Logic", () => {
+	// This hook runs once after all tests in this file are complete.
+	afterAll(async () => {
+		await EmbeddingService.dispose();
+	});
+
+	it("should do something with the tool retriever", async () => {
+		// Your test logic here...
+	});
+});
+````
+
+#### Use Case 2: Graceful Application Shutdown
+
+For long-running servers, it's good practice to release resources gracefully when the application is shutting down. You can hook into Node.js process signals to dispose of the model.
+
+```typescript
+// In your main server file (e.g., index.ts)
+import { EmbeddingService } from "ai-tool-retriever/utils";
+
+// ... your server setup ...
+
+async function handleShutdown(signal: string) {
+	console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+	await EmbeddingService.dispose();
+	process.exit(0);
+}
+
+// Listen for SIGINT (e.g., Ctrl+C) and SIGTERM (e.g., from Docker or PM2)
+process.on("SIGINT", handleShutdown);
+process.on("SIGTERM", handleShutdown);
+```

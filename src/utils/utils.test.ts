@@ -1,4 +1,4 @@
-import type { ToolDefinition } from './types'
+import type { ToolDefinition } from '../types'
 import { tool as createTool } from 'ai'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
