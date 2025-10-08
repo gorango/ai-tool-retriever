@@ -38,7 +38,7 @@ pnpm add @xenova/transformers
 
 ### Quick Start
 
-The new architecture requires you to explicitly initialize and provide the embedding model and tool store. This makes the setup process transparent and flexible.
+You must explicitly initialize and provide the embedding model and tool store. The library provides defaults for a local model and an in-memory store.
 
 The first time you use the default `TransformersEmbeddingProvider`, it will download and cache the embedding model (`~260MB`). This is a one-time operation.
 
@@ -107,6 +107,8 @@ async function main() {
 
 main();
 ```
+
+---
 
 ### Advanced Usage
 
@@ -180,13 +182,168 @@ const relevantTools = await retriever.retrieve(
 );
 ```
 
+> **Important**: When using a custom embedding provider with a persistent vector store (like Supabase), ensure the vector column in your database is configured with the correct dimensions (e.g., `VECTOR(1536)` for OpenAI's `text-embedding-3-small`).
+
 #### Using a Custom Vector Store
 
 To use a different vector database, implement the `ToolStore` interface. The `sync` method is called once during initialization to ensure the vector database is up-to-date with your tool definitions.
 
-The process is the same: create your custom store class, instantiate it, and pass it to `ToolRetriever.create()`. The example for Supabase in the original README is still perfectly applicable. The `ToolRetriever` will pass the `embeddingProvider` to your custom store's `sync` method when needed.
+> **Best Practice: Crafting Text for High-Quality Embeddings**
+>
+> The quality of the semantic search is highly dependent on the text used to generate the embedding for each tool. For best results, your `ToolStore`'s `sync` method should create a single, rich string that includes the tool's name, its detailed description, and any relevant keywords.
+>
+> The default `InMemoryStore` uses the following format as its best practice, and replicating this pattern in your custom store will ensure you get great search accuracy:
+>
+> ```ts
+> const textToEmbed =
+> 	`${definition.name}: ${definition.tool.description}. Keywords: ${definition.keywords?.join(", ")}`.trim();
+> ```
 
-### Advanced: Managing the Embedding Model Lifecycle
+For persistent stores (like Supabase or Pinecone), it's crucial to implement `sync` efficiently to avoid re-calculating embeddings for unchanged tools on every application restart. The library provides a `createToolContentHash` utility to help with this.
+
+First, you would need a table and a search function in Supabase. Notice how the vector dimensions in the SQL must match the embedding model you are using.
+
+```sql
+-- 1. Create a table to store tool embeddings
+CREATE TABLE ai_tools (
+  name TEXT PRIMARY KEY,
+  description TEXT,
+  content_hash TEXT NOT NULL,
+  -- Dimension of Xenova/all-MiniLM-L6-v2.
+  -- CHANGE THIS to e.g. VECTOR(1536) if using OpenAI's text-embedding-3-small
+  embedding VECTOR(384)
+);
+
+-- 2. Create a function for vector similarity search
+CREATE OR REPLACE FUNCTION match_ai_tools (
+  -- This dimension MUST match the table's embedding column
+  query_embedding VECTOR(384),
+  match_threshold FLOAT,
+  match_count INT
+) RETURNS TABLE (name TEXT, similarity FLOAT)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT t.name, 1 - (t.embedding <=> query_embedding) AS similarity
+  FROM ai_tools t
+  WHERE 1 - (t.embedding <=> query_embedding) > match_threshold
+  ORDER BY similarity DESC
+  LIMIT match_count;
+END;
+$$;
+```
+
+Next, your `ToolStore` implementation would manage syncing and searching:
+
+```typescript
+import type { ToolStore, ToolDefinition } from "ai-tool-retriever";
+import {
+	createToolContentHash,
+	EmbeddingService,
+} from "ai-tool-retriever/utils";
+import { createClient } from "@supabase/supabase-js";
+
+const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
+
+/**
+ * @example
+ * const myTools: ToolDefinition[] = [ { ... }, { ... } ];
+ * const retriever = await ToolRetriever.create({
+ *   tools: myTools,
+ *   store: await SupabaseStore.create(myTools),
+ * });
+ */
+class SupabaseStore implements ToolStore {
+	private embeddingService!: EmbeddingService;
+	private allToolsMap: Map<string, ToolDefinition>;
+
+	private constructor(tools: ToolDefinition[]) {
+		this.allToolsMap = new Map(tools.map((t) => [t.name, t]));
+	}
+
+	public static async create(
+		tools: ToolDefinition[],
+	): Promise<SupabaseStore> {
+		const store = new SupabaseStore(tools);
+		// Note: This example assumes the default EmbeddingService is used.
+		// A more advanced implementation would accept an EmbeddingProvider.
+		store.embeddingService = await EmbeddingService.getInstance();
+		return store;
+	}
+
+	async sync(toolDefinitions: ToolDefinition[]): Promise<void> {
+		console.log("Syncing tools with Supabase...");
+
+		const { data: existingTools } = await sb
+			.from("ai_tools")
+			.select("name, content_hash");
+
+		const existingToolsMap = new Map(
+			existing!.map((t) => [t.name, t.content_hash]),
+		);
+
+		const currentToolNames = new Set(toolDefinitions.map((t) => t.name));
+
+		const toolsToDelete = Array.from(existingToolsMap.keys()).filter(
+			(name) => !currentToolNames.has(name),
+		);
+
+		if (toolsToDelete.length > 0) {
+			console.log(`Removing ${toolsToDelete.length} obsolete tools...`);
+			await sb.from("ai_tools").delete().in("name", toolsToDelete);
+		}
+
+		const toolsToUpdate = toolDefinitions.filter((def) => {
+			const newHash = createToolContentHash(def);
+			// Update if the tool is new or if its content has changed
+			return existingToolsMap.get(def.name) !== newHash;
+		});
+
+		if (toolsToUpdate.length > 0) {
+			console.log(
+				`Found ${toolsToUpdate.length} new or updated tools to embed.`,
+			);
+			const texts = toolsToUpdate.map((t) => {
+				const description = t.tool.description || "";
+				const keywords = t.keywords?.join(", ") || "";
+				return `${t.name}: ${description}. Keywords: ${keywords}`.trim();
+			});
+			const embeddings =
+				await this.embeddingService.getFloatEmbeddingsBatch(texts);
+
+			const records = toolsToUpdate.map((tool, i) => ({
+				name: tool.name,
+				description: tool.tool.description,
+				content_hash: createToolContentHash(tool),
+				embedding: embeddings[i],
+			}));
+
+			await sb.from("ai_tools").upsert(records, { onConflict: "name" });
+		} else {
+			console.log("All tools are already up-to-date in Supabase.");
+		}
+	}
+
+	async search(
+		queryEmbedding: number[],
+		count: number,
+		threshold: number,
+	): Promise<ToolDefinition[]> {
+		const { data: results } = await sb.rpc("match_ai_tools", {
+			query_embedding: queryEmbedding,
+			match_count: count,
+			match_threshold: threshold,
+		});
+
+		if (!results) return [];
+		return results
+			.map((r) => this.allToolsMap.get(r.name))
+			.filter(Boolean) as ToolDefinition[];
+	}
+}
+```
+
+#### Managing the Embedding Model Lifecycle
 
 > **Note:** This section applies only when using the default local embedding provider, `TransformersEmbeddingProvider`. Custom embedding providers are responsible for their own resource management.
 
@@ -194,7 +351,7 @@ The default provider is designed for efficiency. When you first use it, it loads
 
 In some scenarios, like during automated tests, you might want to manually unload the model to free up memory. For this, the provider exposes a static `dispose` method.
 
-#### `TransformersEmbeddingProvider.dispose()`
+##### `TransformersEmbeddingProvider.dispose()`
 
 You can call this method to remove the model from memory.
 
@@ -224,7 +381,7 @@ describe("My Application Logic", () => {
 });
 ```
 
-#### Pre-downloading the Embedding Model
+##### Pre-downloading the Embedding Model
 
 The library includes a command-line utility to pre-download and cache the default embedding model. This is highly recommended for CI/CD pipelines or when building Docker containers to avoid a slow cold start on the first run of your application.
 
