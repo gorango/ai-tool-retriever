@@ -7,8 +7,8 @@ import { ToolNotFoundError } from './errors'
 
 interface ToolRetrieverOptions {
 	tools: ToolDefinition[]
-	store: ToolStore // No longer optional
-	embeddingProvider: EmbeddingProvider // No longer optional
+	store: ToolStore
+	embeddingProvider: EmbeddingProvider
 }
 
 interface RetrieveOptions {
@@ -33,11 +33,9 @@ export class ToolRetriever {
 		this.embeddingProvider = embeddingProvider
 	}
 
-	// The create method becomes a simple async constructor
 	public static async create(options: ToolRetrieverOptions): Promise<ToolRetriever> {
 		const retriever = new ToolRetriever(options.store, options.tools, options.embeddingProvider)
-		// Sync is still essential
-		await retriever.store.sync(options.tools)
+		await retriever.store.sync(options.tools, retriever.embeddingProvider)
 		return retriever
 	}
 

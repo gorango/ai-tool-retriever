@@ -43,11 +43,11 @@ describe('InMemoryStore', () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks()
-		store = InMemoryStore.create({ embeddingProvider: mockEmbeddingProvider })
+		store = InMemoryStore.create()
 	})
 
 	it('should correctly sync tools and generate their metadata', async () => {
-		await store.sync([toolADef, toolBDef])
+		await store.sync([toolADef, toolBDef], mockEmbeddingProvider)
 		// @ts-expect-error - accessing private property for test
 		expect(store.tools.length).toBe(2)
 		// @ts-expect-error - accessing private property for test
@@ -62,14 +62,14 @@ describe('InMemoryStore', () => {
 
 	it('should overwrite existing tools when re-syncing', async () => {
 		// First sync
-		await store.sync([toolADef])
+		await store.sync([toolADef], mockEmbeddingProvider)
 		// @ts-expect-error - accessing private property for test
 		expect(store.tools.length).toBe(1)
 		// @ts-expect-error - accessing private property for test
 		expect(store.tools[0].definition.name).toBe('toolA')
 
 		// Re-sync with a different set of tools
-		await store.sync([toolBDef, toolCDef])
+		await store.sync([toolBDef, toolCDef], mockEmbeddingProvider)
 		// @ts-expect-error - accessing private property for test
 		expect(store.tools.length).toBe(2)
 		// @ts-expect-error - accessing private property for test
@@ -79,17 +79,17 @@ describe('InMemoryStore', () => {
 	})
 
 	it('should clear the store when syncing with an empty array', async () => {
-		await store.sync([toolADef])
+		await store.sync([toolADef], mockEmbeddingProvider)
 		// @ts-expect-error - accessing private property for test
 		expect(store.tools.length).toBe(1)
 
-		await store.sync([])
+		await store.sync([], mockEmbeddingProvider)
 		// @ts-expect-error - accessing private property for test
 		expect(store.tools.length).toBe(0)
 	})
 
 	it('should return tools sorted by cosine similarity', async () => {
-		await store.sync([toolADef, toolBDef])
+		await store.sync([toolADef, toolBDef], mockEmbeddingProvider)
 		const results = await store.search(queryEmbedding, 2, 0)
 		expect(results.length).toBe(2)
 		expect(results[0].name).toBe('toolA')
@@ -97,14 +97,14 @@ describe('InMemoryStore', () => {
 	})
 
 	it('should respect the `count` parameter', async () => {
-		await store.sync([toolADef, toolBDef])
+		await store.sync([toolADef, toolBDef], mockEmbeddingProvider)
 		const results = await store.search(queryEmbedding, 1, 0)
 		expect(results.length).toBe(1)
 		expect(results[0].name).toBe('toolA')
 	})
 
 	it('should filter results by similarity threshold', async () => {
-		await store.sync([toolADef, toolBDef])
+		await store.sync([toolADef, toolBDef], mockEmbeddingProvider)
 		const threshold = 0.5
 		const results = await store.search(queryEmbedding, 2, threshold)
 		expect(results.length).toBe(1)

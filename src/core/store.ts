@@ -1,3 +1,4 @@
+import type { EmbeddingProvider } from './embedding'
 import type { ToolDefinition } from './types'
 
 export interface ToolWithMetadata {
@@ -21,8 +22,9 @@ export interface ToolStore {
 	 * It should handle adding new tools, updating changed tools (based on content),
 	 * and optionally removing tools that are no longer defined.
 	 * @param tools The complete list of current tool definitions.
+	 * @param embeddingProvider The embedding provider to use for generating tool embeddings.
 	 */
-	sync: (tools: ToolDefinition[]) => Promise<void>
+	sync: (tools: ToolDefinition[], embeddingProvider: EmbeddingProvider) => Promise<void>
 
 	/**
 	 * Searches the store for the most relevant tools based on a query embedding.

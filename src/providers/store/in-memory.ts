@@ -3,28 +3,22 @@ import type { ToolStore, ToolWithMetadata } from '../../core/store'
 import type { ToolDefinition } from '../../core/types'
 import { cosineSimilarity, createToolContentHash } from '../../utils'
 
-interface InMemoryStoreOptions {
-	embeddingProvider: EmbeddingProvider
-}
-
 export class InMemoryStore implements ToolStore {
 	private tools: ToolWithMetadata[] = []
-	private embeddingProvider: EmbeddingProvider
 
 	// private constructor is used to enforce async initialization via `create`.
-	private constructor(options: InMemoryStoreOptions) {
-		this.embeddingProvider = options.embeddingProvider
+	private constructor() {
 	}
 
 	/**
 	 * Creates and initializes an instance of InMemoryStore.
 	 * It requires an embedding provider to function.
 	 */
-	public static create(options: InMemoryStoreOptions): InMemoryStore {
-		return new InMemoryStore(options)
+	public static create(): InMemoryStore {
+		return new InMemoryStore()
 	}
 
-	async sync(toolDefinitions: ToolDefinition[]): Promise<void> {
+	async sync(toolDefinitions: ToolDefinition[], embeddingProvider: EmbeddingProvider): Promise<void> {
 		if (toolDefinitions.length === 0) {
 			this.tools = []
 			return
@@ -36,8 +30,8 @@ export class InMemoryStore implements ToolStore {
 			return `${definition.name}: ${description}. Keywords: ${keywords}`.trim()
 		})
 
-		// It uses the provider it received during creation
-		const embeddings = await this.embeddingProvider.getFloatEmbeddingsBatch(textsToEmbed)
+		// It uses the provider it received during the call
+		const embeddings = await embeddingProvider.getFloatEmbeddingsBatch(textsToEmbed)
 
 		this.tools = toolDefinitions.map((definition, i) => ({
 			definition,

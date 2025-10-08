@@ -77,10 +77,10 @@ async function initializeRetriever() {
 	// Explicitly create your embedding provider
 	const embeddingProvider = await TransformersEmbeddingProvider.create();
 
-	// Explicitly create your tool store, passing it the provider
-	const store = new InMemoryStore({ embeddingProvider });
+	// Explicitly create your store
+	const store = new InMemoryStore();
 
-	// Pass the configured components to the retriever
+	// Pass the components to the retriever. The retriever handles the rest.
 	const retriever = await ToolRetriever.create({
 		tools: allMyTools,
 		embeddingProvider,
@@ -166,7 +166,7 @@ const myTools = [
 	/* ... your tool definitions ... */
 ];
 const embeddingProvider = new OpenAIEmbeddingProvider();
-const store = new InMemoryStore({ embeddingProvider });
+const store = new InMemoryStore();
 
 const retriever = await ToolRetriever.create({
 	tools: myTools,
@@ -184,7 +184,7 @@ const relevantTools = await retriever.retrieve(
 
 To use a different vector database, implement the `ToolStore` interface. The `sync` method is called once during initialization to ensure the vector database is up-to-date with your tool definitions.
 
-The process is the same: create your custom store class, instantiate it, and pass it to `ToolRetriever.create()`. The example for Supabase in the original README is still perfectly applicable. Just remember to pass your chosen `embeddingProvider` to your custom store if it needs it for the `sync` process.
+The process is the same: create your custom store class, instantiate it, and pass it to `ToolRetriever.create()`. The example for Supabase in the original README is still perfectly applicable. The `ToolRetriever` will pass the `embeddingProvider` to your custom store's `sync` method when needed.
 
 ### Advanced: Managing the Embedding Model Lifecycle
 
