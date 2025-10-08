@@ -3,7 +3,7 @@ import process from 'node:process'
 import { env, pipeline } from '@xenova/transformers'
 
 // This script pre-downloads the model to avoid a cold start on first use.
-// It's the same logic used by the EmbeddingService, ensuring the same cache location.
+// It's the same logic used by the TransformersEmbeddingProvider, ensuring the same cache location.
 
 const MODEL_NAME = 'Xenova/all-MiniLM-L6-v2'
 const CACHE_DIR = path.join(process.cwd(), '.models')

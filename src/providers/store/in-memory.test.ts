@@ -1,5 +1,5 @@
-import type { EmbeddingProvider } from '../embedding/interface'
-import type { ToolDefinition } from '../types'
+import type { EmbeddingProvider } from '../../core/embedding'
+import type { ToolDefinition } from '../../core/types'
 import { tool as createTool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -37,24 +37,6 @@ const mockEmbeddingProvider: EmbeddingProvider = {
 		})
 	}),
 }
-
-vi.mock('../embedding/service', () => ({
-	EmbeddingService: {
-		getInstance: vi.fn().mockResolvedValue({
-			getFloatEmbeddingsBatch: vi.fn().mockImplementation(async (texts: string[]) => {
-				const embeddings = texts.map((text) => {
-					if (text.includes('toolA'))
-						return embeddingA
-					if (text.includes('toolB'))
-						return embeddingB
-					return [0, 0, 0, 0] // Default for unknown text
-				})
-				return embeddings
-			}),
-			getFloatEmbedding: vi.fn().mockResolvedValue([0, 0, 0, 0]),
-		}),
-	},
-}))
 
 describe('InMemoryStore', () => {
 	let store: InMemoryStore
@@ -107,7 +89,7 @@ describe('InMemoryStore', () => {
 	})
 
 	it('should return tools sorted by cosine similarity', async () => {
-		await store.sync([toolADef, toolBDef]) // changed from add to sync
+		await store.sync([toolADef, toolBDef])
 		const results = await store.search(queryEmbedding, 2, 0)
 		expect(results.length).toBe(2)
 		expect(results[0].name).toBe('toolA')
@@ -115,14 +97,14 @@ describe('InMemoryStore', () => {
 	})
 
 	it('should respect the `count` parameter', async () => {
-		await store.sync([toolADef, toolBDef]) // changed from add to sync
+		await store.sync([toolADef, toolBDef])
 		const results = await store.search(queryEmbedding, 1, 0)
 		expect(results.length).toBe(1)
 		expect(results[0].name).toBe('toolA')
 	})
 
 	it('should filter results by similarity threshold', async () => {
-		await store.sync([toolADef, toolBDef]) // changed from add to sync
+		await store.sync([toolADef, toolBDef])
 		const threshold = 0.5
 		const results = await store.search(queryEmbedding, 2, threshold)
 		expect(results.length).toBe(1)

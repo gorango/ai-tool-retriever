@@ -1,13 +1,13 @@
 import type { Tool } from 'ai'
-import type { EmbeddingProvider } from './embedding/interface'
-import type { ToolStore } from './store/interface'
+import type { EmbeddingProvider } from './embedding'
+import type { ToolStore } from './store'
 import type { ToolDefinition } from './types'
-import { extractToolsFromQuerySyntax } from './utils'
+import { extractToolsFromQuerySyntax } from '../utils'
 
 interface ToolRetrieverOptions {
 	tools: ToolDefinition[]
-	store?: ToolStore
-	embeddingProvider?: EmbeddingProvider
+	store: ToolStore // No longer optional
+	embeddingProvider: EmbeddingProvider // No longer optional
 }
 
 interface RetrieveOptions {
@@ -32,15 +32,10 @@ export class ToolRetriever {
 		this.embeddingProvider = embeddingProvider
 	}
 
+	// The create method becomes a simple async constructor
 	public static async create(options: ToolRetrieverOptions): Promise<ToolRetriever> {
-		const embeddingProvider = options.embeddingProvider
-			|| await (await import('./embedding/service')).EmbeddingService.getInstance()
-
-		const store = options.store
-			|| (await import('./store/in-memory')).InMemoryStore.create({ embeddingProvider })
-
-		const retriever = new ToolRetriever(store, options.tools, embeddingProvider)
-
+		const retriever = new ToolRetriever(options.store, options.tools, options.embeddingProvider)
+		// Sync is still essential
 		await retriever.store.sync(options.tools)
 		return retriever
 	}

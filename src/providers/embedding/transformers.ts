@@ -1,5 +1,5 @@
 import type { FeatureExtractionPipeline } from '@xenova/transformers'
-import type { EmbeddingProvider } from './interface'
+import type { EmbeddingProvider } from '../../core/embedding'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -10,27 +10,27 @@ type GlobalWithPipeline = typeof globalThis & {
 	[PIPELINE_PROMISE_SYMBOL]?: Promise<FeatureExtractionPipeline>
 }
 
-export class EmbeddingService implements EmbeddingProvider {
-	private static instance?: EmbeddingService
-	private static initializationPromise: Promise<EmbeddingService> | null = null
+export class TransformersEmbeddingProvider implements EmbeddingProvider {
+	private static instance?: TransformersEmbeddingProvider
+	private static initializationPromise: Promise<TransformersEmbeddingProvider> | null = null
 	private pipe: FeatureExtractionPipeline
-	public readonly dimensions = 384 // Dimension of the all-MiniLM-L6-v2 model
+	public readonly dimensions: number = 384 // Dimension of the all-MiniLM-L6-v2 model
 
 	private constructor(pipe: FeatureExtractionPipeline) {
 		this.pipe = pipe
 	}
 
 	/**
-	 * Gets the singleton instance of the EmbeddingService, initializing it if necessary.
+	 * Gets the singleton instance of the TransformersEmbeddingProvider, initializing it if necessary.
 	 */
-	public static getInstance(): Promise<EmbeddingService> {
+	public static async create(): Promise<TransformersEmbeddingProvider> {
 		if (this.instance)
-			return Promise.resolve(this.instance)
+			return this.instance
 
 		if (!this.initializationPromise) {
 			this.initializationPromise = new Promise((resolve, reject) => {
 				this.getPipeline().then((pipelineInstance) => {
-					this.instance = new EmbeddingService(pipelineInstance)
+					this.instance = new TransformersEmbeddingProvider(pipelineInstance)
 					resolve(this.instance)
 				}).catch((error) => {
 					console.error('Failed to initialize embedding model pipeline.')

@@ -1,7 +1,7 @@
-import type { EmbeddingProvider } from '../embedding/interface'
-import type { ToolDefinition } from '../types'
-import type { ToolStore, ToolWithMetadata } from './interface'
-import { cosineSimilarity, createToolContentHash } from '../utils'
+import type { EmbeddingProvider } from '../../core/embedding'
+import type { ToolStore, ToolWithMetadata } from '../../core/store'
+import type { ToolDefinition } from '../../core/types'
+import { cosineSimilarity, createToolContentHash } from '../../utils'
 
 interface InMemoryStoreOptions {
 	embeddingProvider: EmbeddingProvider

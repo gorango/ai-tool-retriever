@@ -1,2 +1,2 @@
-export { EmbeddingService } from '../embedding/service'
+export { TransformersEmbeddingProvider } from '../providers/embedding/transformers'
 export * from './utils'
