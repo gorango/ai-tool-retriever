@@ -3,6 +3,7 @@ import type { EmbeddingProvider } from './embedding'
 import type { ToolStore } from './store'
 import type { ToolDefinition } from './types'
 import { extractToolsFromQuerySyntax } from '../utils'
+import { ToolNotFoundError } from './errors'
 
 interface ToolRetrieverOptions {
 	tools: ToolDefinition[]
@@ -40,6 +41,14 @@ export class ToolRetriever {
 		return retriever
 	}
 
+	/**
+	 * Retrieves relevant tools for a user query.
+	 *
+	 * @param userQuery - The input text from the user.
+	 * @param options - Optional settings to fine-tune retrieval.
+	 * @returns A promise that resolves to a record of relevant tools.
+	 * @throws {ToolNotFoundError} If `strict` is true and a tool from the query syntax is not found.
+	 */
 	public async retrieve(
 		userQuery: string,
 		options: RetrieveOptions = {},
@@ -56,6 +65,7 @@ export class ToolRetriever {
 	 * @param options The retrieval options to apply to each query.
 	 * @returns A promise that resolves to an array of tool records, with each
 	 *          record corresponding to a query in the input array.
+	 * @throws {ToolNotFoundError} If `strict` is true and a tool from a query's syntax is not found.
 	 */
 	public async retrieveBatch(
 		userQueries: string[],
@@ -83,12 +93,12 @@ export class ToolRetriever {
 					finalTools.set(definition.name, definition.tool)
 				}
 				else {
-					const message = `Tool '${toolName}' from query syntax not found.`
-					if (strict)
-						throw new Error(message)
-
-					else
-						console.warn(message)
+					if (strict) {
+						throw new ToolNotFoundError(toolName)
+					}
+					else {
+						console.warn(`Tool '${toolName}' from query syntax not found.`)
+					}
 				}
 			}
 			results.push(Object.fromEntries(finalTools))

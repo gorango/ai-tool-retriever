@@ -123,7 +123,7 @@ const relevantTools = await retriever.retrieve(
 		strict: true,
 	},
 );
-// This would throw: Error: Tool 'aMissingTool' from query syntax not found.
+// This would throw: ToolNotFoundError: Tool 'aMissingTool' from query syntax not found.
 ```
 
 #### Using a Custom Embedding Provider

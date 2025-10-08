@@ -3,6 +3,7 @@ import type { ToolDefinition } from './core/types'
 import { tool as createTool } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import { ToolNotFoundError } from './core/errors'
 import { ToolRetriever } from './core/retriever'
 
 const weatherToolDef: ToolDefinition = {
@@ -29,8 +30,8 @@ const mockStore: ToolStore = {
 	}),
 }
 
-vi.mock('./providers/embedding-xenova', () => ({
-	XenovaEmbeddingProvider: {
+vi.mock('./providers/embedding/transformers', () => ({
+	TransformersEmbeddingProvider: {
 		create: vi.fn().mockResolvedValue({
 			getFloatEmbedding: vi.fn().mockImplementation(async (query: string) => {
 				if (query.includes('weather'))
@@ -54,7 +55,7 @@ vi.mock('./providers/embedding-xenova', () => ({
 
 describe('ToolRetriever', () => {
 	it('should retrieve tools based on semantic similarity', async () => {
-		const mockEmbeddingProvider = await (await import('./providers/embedding-xenova')).XenovaEmbeddingProvider.create()
+		const mockEmbeddingProvider = await (await import('./providers/embedding/transformers')).TransformersEmbeddingProvider.create()
 		const retriever = await ToolRetriever.create({ tools: [weatherToolDef, newsToolDef], store: mockStore, embeddingProvider: mockEmbeddingProvider })
 		const result = await retriever.retrieve('What is the weather in SF?')
 		expect(Object.keys(result)).toContain('getWeather')
@@ -62,21 +63,21 @@ describe('ToolRetriever', () => {
 	})
 
 	it('should retrieve tools based on explicit syntax', async () => {
-		const mockEmbeddingProvider = await (await import('./providers/embedding-xenova')).XenovaEmbeddingProvider.create()
+		const mockEmbeddingProvider = await (await import('./providers/embedding/transformers')).TransformersEmbeddingProvider.create()
 		const retriever = await ToolRetriever.create({ tools: [weatherToolDef, newsToolDef], store: mockStore, embeddingProvider: mockEmbeddingProvider })
 		const result = await retriever.retrieve('Some query with [getNews] explicitly mentioned')
 		expect(Object.keys(result)).toContain('getNews')
 	})
 
 	it('should combine semantic and explicit results', async () => {
-		const mockEmbeddingProvider = await (await import('./providers/embedding-xenova')).XenovaEmbeddingProvider.create()
+		const mockEmbeddingProvider = await (await import('./providers/embedding/transformers')).TransformersEmbeddingProvider.create()
 		const retriever = await ToolRetriever.create({ tools: [weatherToolDef, newsToolDef], store: mockStore, embeddingProvider: mockEmbeddingProvider })
 		const result = await retriever.retrieve('What is the weather like? Also get me the news [getNews]')
 		expect(Object.keys(result)).toEqual(['getWeather', 'getNews'])
 	})
 
 	it('should handle queries with no semantic matches gracefully', async () => {
-		const mockEmbeddingProvider = await (await import('./providers/embedding-xenova')).XenovaEmbeddingProvider.create()
+		const mockEmbeddingProvider = await (await import('./providers/embedding/transformers')).TransformersEmbeddingProvider.create()
 		const retriever = await ToolRetriever.create({ tools: [weatherToolDef], store: mockStore, embeddingProvider: mockEmbeddingProvider })
 		const result = await retriever.retrieve('a query with no matching terms')
 		expect(Object.keys(result).length).toBe(0)
@@ -94,16 +95,17 @@ describe('ToolRetriever', () => {
 		})
 
 		it('should throw an error for a missing explicit tool when strict is true', async () => {
-			const mockEmbeddingProvider = await (await import('./providers/embedding-xenova')).XenovaEmbeddingProvider.create()
+			const mockEmbeddingProvider = await (await import('./providers/embedding/transformers')).TransformersEmbeddingProvider.create()
 			const retriever = await ToolRetriever.create({ tools: [weatherToolDef], store: mockStore, embeddingProvider: mockEmbeddingProvider })
 			const query = 'Find me the weather and [aMissingTool]'
-			await expect(retriever.retrieve(query, { strict: true })).rejects.toThrow(
-				'Tool \'aMissingTool\' from query syntax not found.',
+			await expect(retriever.retrieve(query, { strict: true })).rejects.toThrow(ToolNotFoundError)
+			await expect(retriever.retrieve(query, { strict: true })).rejects.toSatisfy(
+				(e: ToolNotFoundError) => e.toolName === 'aMissingTool',
 			)
 		})
 
 		it('should warn and not throw for a missing explicit tool by default (strict: false)', async () => {
-			const mockEmbeddingProvider = await (await import('./providers/embedding-xenova')).XenovaEmbeddingProvider.create()
+			const mockEmbeddingProvider = await (await import('./providers/embedding/transformers')).TransformersEmbeddingProvider.create()
 			const retriever = await ToolRetriever.create({ tools: [weatherToolDef], store: mockStore, embeddingProvider: mockEmbeddingProvider })
 			const query = 'Find me the weather and [aMissingTool]'
 			await expect(retriever.retrieve(query)).resolves.not.toThrow()
