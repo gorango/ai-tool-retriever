@@ -49,31 +49,56 @@ export class ToolRetriever {
 		userQuery: string,
 		options: RetrieveOptions = {},
 	): Promise<Record<string, Tool<any, any>>> {
-		const queryEmbedding = await this.embeddingProvider.getFloatEmbedding(userQuery)
+		const results = await this.retrieveBatch([userQuery], options)
+		return results[0]
+	}
 
+	/**
+	 * Retrieves relevant tools for a batch of user queries.
+	 * This method is more efficient than calling `retrieve` in a loop as it
+	 * calculates embeddings for all queries in a single operation.
+	 * @param userQueries An array of user queries.
+	 * @param options The retrieval options to apply to each query.
+	 * @returns A promise that resolves to an array of tool records, with each
+	 *          record corresponding to a query in the input array.
+	 */
+	public async retrieveBatch(
+		userQueries: string[],
+		options: RetrieveOptions = {},
+	): Promise<Record<string, Tool<any, any>>[]> {
 		const { matchCount = 12, matchThreshold = 0, strict = false } = options
-		const semanticallyMatched = await this.store.search(queryEmbedding, matchCount, matchThreshold)
-		const explicitlyMentioned = extractToolsFromQuerySyntax(userQuery)
+		const queryEmbeddings = await this.embeddingProvider.getFloatEmbeddingsBatch(userQueries)
+		const results: Record<string, Tool<any, any>>[] = []
 
-		const finalTools = new Map<string, Tool<any, any>>()
+		for (let i = 0; i < userQueries.length; i++) {
+			const userQuery = userQueries[i]
+			const queryEmbedding = queryEmbeddings[i]
 
-		for (const definition of semanticallyMatched)
-			finalTools.set(definition.name, definition.tool)
+			const semanticallyMatched = await this.store.search(queryEmbedding, matchCount, matchThreshold)
+			const explicitlyMentioned = extractToolsFromQuerySyntax(userQuery)
 
-		for (const toolName of explicitlyMentioned) {
-			const definition = this.allTools.get(toolName)
-			if (definition) {
+			const finalTools = new Map<string, Tool<any, any>>()
+
+			for (const definition of semanticallyMatched)
 				finalTools.set(definition.name, definition.tool)
+
+			for (const toolName of explicitlyMentioned) {
+				const definition = this.allTools.get(toolName)
+				if (definition) {
+					finalTools.set(definition.name, definition.tool)
+				}
+				else {
+					const message = `Tool '${toolName}' from query syntax not found.`
+					if (strict)
+						throw new Error(message)
+
+					else
+						console.warn(message)
+				}
 			}
-			else {
-				const message = `Tool '${toolName}' from query syntax not found.`
-				if (strict)
-					throw new Error(message)
-				else
-					console.warn(message)
-			}
+			results.push(Object.fromEntries(finalTools))
 		}
 
-		return Object.fromEntries(finalTools)
+		return results
 	}
 }

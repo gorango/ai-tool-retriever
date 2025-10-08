@@ -32,7 +32,6 @@ const mockStore: ToolStore = {
 vi.mock('./embedding/service', () => ({
 	EmbeddingService: {
 		getInstance: vi.fn().mockResolvedValue({
-			// This is used by the retriever to embed the user query
 			getFloatEmbedding: vi.fn().mockImplementation(async (query: string) => {
 				if (query.includes('weather'))
 					return [0.9, 0.1]
@@ -40,9 +39,14 @@ vi.mock('./embedding/service', () => ({
 					return [0.1, 0.9]
 				return [0, 0]
 			}),
-			// This is used by the default InMemoryStore during .create()
 			getFloatEmbeddingsBatch: vi.fn().mockImplementation(async (texts: string[]) => {
-				return texts.map(_text => [0, 0, 0, 0]) // Return a default embedding for initialization
+				return texts.map((query) => {
+					if (query.includes('weather'))
+						return [0.9, 0.1]
+					if (query.includes('news'))
+						return [0.1, 0.9]
+					return [0, 0]
+				})
 			}),
 		}),
 	},
