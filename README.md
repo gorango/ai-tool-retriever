@@ -6,7 +6,7 @@ It uses semantic search to find the best tools for the job, ensuring your AI mod
 
 This library provides a lean core and a set of optional providers, allowing you to choose your own embedding models and vector stores without inheriting unnecessary dependencies.
 
-### Features
+## Features
 
 - **Dynamic Tool Selection**: Automatically selects relevant tools from a larger collection based on semantic similarity.
 - **Pluggable Architecture**: The core library is implementation-agnostic. You explicitly choose and provide your embedding model and vector store.
@@ -18,7 +18,7 @@ This library provides a lean core and a set of optional providers, allowing you 
 - **Idempotent Syncing**: Built-in content hashing utilities to efficiently sync tools with persistent vector stores, avoiding redundant embedding calculations.
 - **TypeScript Native**: Comprehensive type definitions with helpful JSDocs.
 
-#### Core Library
+### Core Library
 
 First, install the core retriever library. It is implementation-agnostic and has a peer dependency on the Vercel AI SDK.
 
@@ -36,7 +36,7 @@ pnpm add @xenova/transformers
 
 > **Note:** `@xenova/transformers` is **only** required if you import from `ai-tool-retriever/providers/embedding/transformers`. If you provide your own embedding solution (e.g., using the OpenAI API), you do not need to install it.
 
-### Quick Start
+## Quick Start
 
 You must explicitly initialize and provide the embedding model and tool store. The library provides defaults for a local model and an in-memory store.
 
@@ -110,9 +110,9 @@ main();
 
 ---
 
-### Advanced Usage
+## Advanced Usage
 
-#### `retrieve()` Options
+### `retrieve()` Options
 
 The `retrieve` method accepts an optional second argument to fine-tune its behavior.
 
@@ -128,7 +128,9 @@ const relevantTools = await retriever.retrieve(
 // This would throw: ToolNotFoundError: Tool 'aMissingTool' from query syntax not found.
 ```
 
-#### Using a Custom Embedding Provider
+***
+
+### Using a Custom Embedding Provider
 
 The retriever's real power comes from its flexibility. You can easily use any external service, like the OpenAI Embeddings API, by creating your own `EmbeddingProvider`.
 
@@ -136,7 +138,7 @@ First, you would implement the `EmbeddingProvider` interface (you may need to ad
 
 ```typescript
 // src/my-openai-embedding-provider.ts
-import type { EmbeddingProvider } from "ai-tool-retriever/core/embedding";
+import type { EmbeddingProvider } from "ai-tool-retriever";
 import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -184,7 +186,9 @@ const relevantTools = await retriever.retrieve(
 
 > **Important**: When using a custom embedding provider with a persistent vector store (like Supabase), ensure the vector column in your database is configured with the correct dimensions (e.g., `VECTOR(1536)` for OpenAI's `text-embedding-3-small`).
 
-#### Using a Custom Vector Store
+***
+
+### Using a Custom Vector Store
 
 To use a different vector database, implement the `ToolStore` interface. The `sync` method is called once during initialization to ensure the vector database is up-to-date with your tool definitions.
 
@@ -343,7 +347,9 @@ class SupabaseStore implements ToolStore {
 }
 ```
 
-#### Managing the Embedding Model Lifecycle
+***
+
+### Managing the Embedding Model Lifecycle
 
 > **Note:** This section applies only when using the default local embedding provider, `TransformersEmbeddingProvider`. Custom embedding providers are responsible for their own resource management.
 
@@ -351,7 +357,7 @@ The default provider is designed for efficiency. When you first use it, it loads
 
 In some scenarios, like during automated tests, you might want to manually unload the model to free up memory. For this, the provider exposes a static `dispose` method.
 
-##### `TransformersEmbeddingProvider.dispose()`
+#### `TransformersEmbeddingProvider.dispose()`
 
 You can call this method to remove the model from memory.
 
@@ -381,7 +387,7 @@ describe("My Application Logic", () => {
 });
 ```
 
-##### Pre-downloading the Embedding Model
+#### Pre-downloading the Embedding Model
 
 The library includes a command-line utility to pre-download and cache the default embedding model. This is highly recommended for CI/CD pipelines or when building Docker containers to avoid a slow cold start on the first run of your application.
 
