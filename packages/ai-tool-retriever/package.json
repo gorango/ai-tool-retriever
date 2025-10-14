@@ -1,7 +1,7 @@
 {
 	"name": "ai-tool-retriever",
 	"type": "module",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"description": "tool retriever for the ai-sdk lib",
 	"author": "gorango",
 	"license": "MIT",
@@ -35,9 +35,6 @@
 			"types": "./dist/utils/index.d.ts",
 			"import": "./dist/utils/index.js"
 		}
-	},
-	"bin": {
-		"download": "./dist/providers/embedding/download.js"
 	},
 	"files": [
 		"dist"

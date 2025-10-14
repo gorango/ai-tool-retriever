@@ -9,7 +9,6 @@ These tests validate the library's behavior in a simulated real-world environmen
 The test scenarios include:
 
 1.  **Cold Start Performance**: Verifying that the embedding model is downloaded on first use and cached for subsequent runs.
-2.  **Pre-downloaded Model**: Ensuring the `ai-tool-retriever-download` command works and results in a fast initial start.
 3.  **Strict Mode**: Confirming that the retriever correctly throws an error when a non-existent tool is explicitly requested in strict mode.
 
 ## Usage

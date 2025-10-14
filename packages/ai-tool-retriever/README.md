@@ -405,17 +405,25 @@ describe("My Application Logic", () => {
 });
 ```
 
-#### Pre-downloading the Embedding Model
+#### Handling Model Caching in CI/CD (for Local Provider)
 
-The library includes a command-line utility to pre-download and cache the default embedding model. This is highly recommended for CI/CD pipelines or when building Docker containers to avoid a slow cold start on the first run of your application.
+When using the default `TransformersEmbeddingProvider`, the embedding model (`~260MB`) is downloaded on its first use and saved to a `.models` directory in your project's root. To avoid this slow "cold start" in CI/CD pipelines or Docker builds, you should cache this directory between runs.
 
-After installing the library, you can run the following command in your project's root directory:
+**Example for GitHub Actions:**
 
-```bash
-npx -p ai-tool-retriever download
+You can use the `actions/cache` action to persist the `.models` directory. Add a step like this to your workflow file before you run your application tests or build steps:
+
+```yaml
+- name: Cache Transformers model
+  uses: actions/cache@v4
+  with:
+    path: ./.models
+    key: ${{ runner.os }}-transformers-cache-${{ hashFiles('**/pnpm-lock.yaml') }}
+    restore-keys: |
+      ${{ runner.os }}-transformers-cache-
 ```
 
-This will execute the same download logic that runs on first use, placing the model files into the `.models` cache directory. By doing this during your build step, your application will be ready to perform embeddings immediately upon starting.
+This will ensure that the model is only downloaded once when your dependencies change, making subsequent pipeline runs significantly faster.
 
 ---
 

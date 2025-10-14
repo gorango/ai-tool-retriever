@@ -6,7 +6,6 @@ export default defineConfig({
 		'src/providers/embedding/transformers.ts',
 		'src/providers/store/in-memory.ts',
 		'src/utils/index.ts',
-		'src/providers/embedding/download.ts',
 	],
 	external: [
 		'sharp',

@@ -4,10 +4,9 @@
 	"private": true,
 	"scripts": {
 		"build": "tsup",
-		"test:cold-start": "bash ./scenarios/1_cold-start.test.sh",
-		"test:pre-download": "bash ./scenarios/2_pre-download.test.sh",
-		"test:strict-mode-failure": "bash ./scenarios/3_strict-mode-failure.test.sh",
-		"test": "pnpm test:cold-start && pnpm test:pre-download && pnpm test:strict-mode-failure"
+		"test:cold-start": "bash ./scenarios/cold-start.test.sh",
+		"test:strict-mode-failure": "bash ./scenarios/strict-mode-failure.test.sh",
+		"test": "pnpm test:cold-start && pnpm test:strict-mode-failure"
 	},
 	"devDependencies": {
 		"@xenova/transformers": "^2.17.2",
