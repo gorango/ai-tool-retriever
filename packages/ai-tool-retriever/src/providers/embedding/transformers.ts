@@ -105,13 +105,16 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
 	 * @returns A promise that resolves to an array of float vectors.
 	 */
 	public async getFloatEmbeddingsBatch(texts: string[]): Promise<number[][]> {
-		const results = await this.pipe(texts, { pooling: 'mean', normalize: true })
-		// The result for a batch is a single Tensor. We need to slice it.
-		const embeddings: number[][] = []
-		for (let i = 0; i < results.dims[0]; i++) {
-			const embedding = Array.from(results.slice([i, 0], [i + 1, -1]).data as Float32Array)
-			embeddings.push(embedding)
+		if (texts.length === 0) {
+			return []
 		}
-		return embeddings
+
+		// The feature-extraction pipeline returns a 2D tensor when given an array of strings.
+		const results = await this.pipe(texts, { pooling: 'mean', normalize: true })
+
+		// The .tolist() method is the recommended way to convert the tensor output
+		// to a nested JavaScript array, which perfectly matches our return type.
+		// This replaces the previous manual slicing logic that was causing the error.
+		return results.tolist() as number[][]
 	}
 }

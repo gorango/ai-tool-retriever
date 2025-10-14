@@ -1,63 +1,26 @@
 {
-	"name": "ai-tool-retriever",
+	"name": "ai-tool-retriever-workspace",
 	"type": "module",
-	"version": "1.0.0-beta.1",
-	"description": "tool retriever for the ai-sdk lib",
-	"author": "gorango",
-	"license": "MIT",
-	"homepage": "https://github.com/gorango/ai-tool-retriever",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/gorango/ai-tool-retriever.git"
-	},
-	"bugs": "https://github.com/gorango/ai-tool-retriever/issues",
-	"keywords": [
-		"ai",
-		"tool-retriever",
-		"semantic-search",
-		"embeddings",
-		"ai-sdk"
-	],
-	"exports": {
-		".": {
-			"types": "./dist/core/index.d.ts",
-			"import": "./dist/core/index.js"
-		},
-		"./providers/embedding/transformers": {
-			"types": "./dist/providers/embedding/transformers.d.ts",
-			"import": "./dist/providers/embedding/transformers.js"
-		},
-		"./providers/store/in-memory": {
-			"types": "./dist/providers/store/in-memory.d.ts",
-			"import": "./dist/providers/store/in-memory.js"
-		},
-		"./utils": {
-			"types": "./dist/utils/index.d.ts",
-			"import": "./dist/utils/index.js"
-		}
-	},
-	"bin": {
-		"ai-tool-retriever-download": "./dist/providers/embedding/download.js"
-	},
-	"files": [
-		"dist"
-	],
+	"private": true,
 	"scripts": {
-		"build": "tsc --project tsconfig.json",
+		"lint": "eslint . --fix",
+		"typecheck": "tsc --noEmit",
+		"build": "pnpm --recursive --filter \"./packages/**\" build",
 		"test": "vitest run"
 	},
-	"peerDependencies": {
-		"ai": ">=5.0.0 <6.0.0"
-	},
 	"devDependencies": {
-		"@ai-sdk/openai": "^2.0.42",
 		"@antfu/eslint-config": "^5.4.1",
-		"@types/node": "^24.7.0",
-		"@xenova/transformers": "^2.17.2",
-		"ai": "^5.0.60",
+		"@types/node": "^24.7.2",
+		"@vitest/coverage-v8": "3.2.4",
 		"eslint": "^9.37.0",
 		"typescript": "^5.9.3",
-		"vitest": "^3.2.4",
-		"zod": "^4.1.12"
+		"vitest": "^3.2.4"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild",
+			"protobufjs",
+			"sharp"
+		]
 	}
 }

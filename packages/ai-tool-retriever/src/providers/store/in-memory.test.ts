@@ -128,7 +128,7 @@ describe('InMemoryStore', () => {
 			mockEmbeddingProvider.getFloatEmbeddingsBatch,
 		).toHaveBeenCalledWith([
 			'toolA: Does A. Keywords: alpha, apple',
-			'toolB: Does B. Keywords: bravo, banana',
+			'toolB: Does B. Keywords: banana, bravo',
 		])
 
 		vi.clearAllMocks()
