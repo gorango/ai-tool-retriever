@@ -412,7 +412,7 @@ The library includes a command-line utility to pre-download and cache the defaul
 After installing the library, you can run the following command in your project's root directory:
 
 ```bash
-npx ai-tool-retriever-download
+npx -p ai-tool-retriever download
 ```
 
 This will execute the same download logic that runs on first use, placing the model files into the `.models` cache directory. By doing this during your build step, your application will be ready to perform embeddings immediately upon starting.
