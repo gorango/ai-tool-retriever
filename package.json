@@ -2,11 +2,13 @@
 	"name": "ai-tool-retriever-workspace",
 	"type": "module",
 	"private": true,
+	"packageManager": "pnpm@10.18.1",
 	"scripts": {
 		"lint": "eslint . --fix",
 		"typecheck": "tsc --noEmit",
 		"build": "pnpm --recursive --filter \"./packages/**\" build",
 		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
 		"e2e": "pnpm --filter e2e test",
 		"benchmark": "pnpm --filter benchmark test"
 	},
