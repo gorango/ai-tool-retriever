@@ -27,7 +27,7 @@ This library provides a lean core and a set of optional providers, allowing you 
 First, install the core retriever library. It is implementation-agnostic and has a peer dependency on the Vercel AI SDK.
 
 ```bash
-pnpm add ai-tool-retriever ai
+npm install ai-tool-retriever ai
 ```
 
 #### Optional: Default Local Embeddings
@@ -35,7 +35,7 @@ pnpm add ai-tool-retriever ai
 If you want to use the default, in-memory provider powered by a local model, you must also install its dependency, `@xenova/transformers`.
 
 ```bash
-pnpm add @xenova/transformers
+npm install @xenova/transformers
 ```
 
 > **Note:** `@xenova/transformers` is **only** required if you import from `ai-tool-retriever/providers/embedding/transformers`. If you provide your own embedding solution (e.g., using the OpenAI API), you do not need to install it.
