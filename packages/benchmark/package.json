@@ -1,0 +1,19 @@
+{
+	"name": "benchmark",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"build": "tsup",
+		"test:throughput": "node dist/embedding-throughput.js",
+		"test:scalability": "node dist/search-scalability.js",
+		"test": "pnpm test:throughput && pnpm test:scalability"
+	},
+	"devDependencies": {
+		"@xenova/transformers": "^2.17.2",
+		"ai": "^5.0.70",
+		"ai-tool-retriever": "workspace:*",
+		"sharp": "^0.34.4",
+		"tsup": "^8.5.0",
+		"zod": "^4.1.12"
+	}
+}

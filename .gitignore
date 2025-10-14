@@ -1,5 +1,7 @@
 .editorconfig
+tsconfig.tsbuildinfo
 
 node_modules
 dist
+.models
 
