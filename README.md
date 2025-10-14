@@ -8,14 +8,14 @@ This library provides a lean core and a set of optional providers, allowing you 
 
 ## Features
 
-- **Dynamic Tool Selection**: Automatically selects relevant tools from a larger collection based on semantic similarity.
-- **Pluggable Architecture**: The core library is implementation-agnostic. You explicitly choose and provide your embedding model and vector store.
-- **Default Providers Included**: Get started quickly with a high-quality local embedding model (`@xenova/transformers`) and an in-memory vector store, available as optional providers.
-- **Bring Your Own Tech**: Easily use external services like OpenAI, Cohere, Supabase, Pinecone, or Redis by implementing simple `EmbeddingProvider` and `ToolStore` interfaces.
+- **Dynamic Tool Selection**: Find relevant tools in a collection based on semantic similarity.
+- **Pluggable Architecture**: Explicitly choose and provide your embedding model and vector store.
+- **Default Local Providers**: Start with `@xenova/transformers` and an in-memory vector store.
+- **Bring Your Own Tech**: Implement your own `EmbeddingProvider` and `ToolStore` interfaces to use external services.
 - **Keyword Enhanced**: Improve search accuracy by adding custom `keywords` to your tool definitions.
 - **Explicit Tool Forcing**: Users can force tool inclusion with a simple `[toolName]` syntax in their query.
 - **Configurable Retrieval**: Fine-tune results with similarity thresholds and control behavior for missing tools.
-- **Idempotent Syncing**: Built-in content hashing utilities to efficiently sync tools with persistent vector stores, avoiding redundant embedding calculations.
+- **Idempotent Syncing**: Built-in content hashing utilities to efficiently sync tools with vector stores.
 - **TypeScript Native**: Comprehensive type definitions with helpful JSDocs.
 
 ### Core Library
@@ -240,54 +240,54 @@ $$;
 Next, your `ToolStore` implementation would manage syncing and searching:
 
 ```typescript
-import type { ToolStore, ToolDefinition } from "ai-tool-retriever";
-import {
-	createToolContentHash,
-	EmbeddingService,
-} from "ai-tool-retriever/utils";
-import { createClient } from "@supabase/supabase-js";
+import type { EmbeddingProvider, ToolStore, ToolDefinition } from "ai-tool-retriever";
+import { createToolContentHash } from "ai-tool-retriever/utils";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
+// Ensure you have SUPABASE_URL and SUPABASE_KEY in your environment
 const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
 
 /**
+ * A ToolStore implementation that uses Supabase for persistent vector storage.
  * @example
  * const myTools: ToolDefinition[] = [ { ... }, { ... } ];
  * const retriever = await ToolRetriever.create({
  *   tools: myTools,
- *   store: await SupabaseStore.create(myTools),
+ *   embeddingProvider: new OpenAIEmbeddingProvider(), // or TransformersEmbeddingProvider
+ *   store: new SupabaseStore(),
  * });
  */
-class SupabaseStore implements ToolStore {
-	private embeddingService!: EmbeddingService;
-	private allToolsMap: Map<string, ToolDefinition>;
+export class SupabaseStore implements ToolStore {
+	private allToolsMap = new Map<string, ToolDefinition>();
 
-	private constructor(tools: ToolDefinition[]) {
-		this.allToolsMap = new Map(tools.map((t) => [t.name, t]));
-	}
-
-	public static async create(
-		tools: ToolDefinition[],
-	): Promise<SupabaseStore> {
-		const store = new SupabaseStore(tools);
-		// Note: This example assumes the default EmbeddingService is used.
-		// A more advanced implementation would accept an EmbeddingProvider.
-		store.embeddingService = await EmbeddingService.getInstance();
-		return store;
-	}
-
-	async sync(toolDefinitions: ToolDefinition[]): Promise<void> {
+	/**
+	 * Synchronizes the Supabase 'ai_tools' table with the provided tool definitions.
+	 * This method efficiently handles additions, updates, and deletions.
+	 * @param toolDefinitions The complete list of current tool definitions.
+	 * @param embeddingProvider The embedding provider to use for generating embeddings for new/updated tools.
+	 */
+	async sync(
+		toolDefinitions: ToolDefinition[],
+		embeddingProvider: EmbeddingProvider,
+	): Promise<void> {
 		console.log("Syncing tools with Supabase...");
+		this.allToolsMap = new Map(toolDefinitions.map((t) => [t.name, t]));
 
-		const { data: existingTools } = await sb
+		const { data: existingTools, error: selectError } = await sb
 			.from("ai_tools")
 			.select("name, content_hash");
 
-		const existingToolsMap = new Map(
-			existing!.map((t) => [t.name, t.content_hash]),
-		);
+		if (selectError) {
+			console.error("Error fetching existing tools:", selectError);
+			throw new Error("Could not fetch tools from Supabase.");
+		}
 
+		const existingToolsMap = new Map(
+			existingTools.map((t) => [t.name, t.content_hash]),
+		);
 		const currentToolNames = new Set(toolDefinitions.map((t) => t.name));
 
+		// 1. Identify tools to delete
 		const toolsToDelete = Array.from(existingToolsMap.keys()).filter(
 			(name) => !currentToolNames.has(name),
 		);
@@ -297,31 +297,38 @@ class SupabaseStore implements ToolStore {
 			await sb.from("ai_tools").delete().in("name", toolsToDelete);
 		}
 
-		const toolsToUpdate = toolDefinitions.filter((def) => {
+		// 2. Identify tools to add or update
+		const toolsToUpsert = toolDefinitions.filter((def) => {
 			const newHash = createToolContentHash(def);
-			// Update if the tool is new or if its content has changed
+			// Upsert if the tool is new or if its content has changed
 			return existingToolsMap.get(def.name) !== newHash;
 		});
 
-		if (toolsToUpdate.length > 0) {
+		if (toolsToUpsert.length > 0) {
 			console.log(
-				`Found ${toolsToUpdate.length} new or updated tools to embed.`,
+				`Found ${toolsToUpsert.length} new or updated tools to embed.`,
 			);
-			const texts = toolsToUpdate.map((t) => {
+
+			// Create the rich text for each tool to be embedded
+			const textsToEmbed = toolsToUpsert.map((t) => {
 				const description = t.tool.description || "";
 				const keywords = t.keywords?.join(", ") || "";
 				return `${t.name}: ${description}. Keywords: ${keywords}`.trim();
 			});
-			const embeddings =
-				await this.embeddingService.getFloatEmbeddingsBatch(texts);
 
-			const records = toolsToUpdate.map((tool, i) => ({
+			// Use the provided embedding provider to get embeddings
+			const embeddings = await embeddingProvider.getFloatEmbeddingsBatch(
+				textsToEmbed,
+			);
+
+			const records = toolsToUpsert.map((tool, i) => ({
 				name: tool.name,
 				description: tool.tool.description,
 				content_hash: createToolContentHash(tool),
 				embedding: embeddings[i],
 			}));
 
+			// Use upsert to add new tools and update existing ones
 			await sb.from("ai_tools").upsert(records, { onConflict: "name" });
 		} else {
 			console.log("All tools are already up-to-date in Supabase.");
@@ -333,13 +340,20 @@ class SupabaseStore implements ToolStore {
 		count: number,
 		threshold: number,
 	): Promise<ToolDefinition[]> {
-		const { data: results } = await sb.rpc("match_ai_tools", {
+		const { data: results, error } = await sb.rpc("match_ai_tools", {
 			query_embedding: queryEmbedding,
 			match_count: count,
 			match_threshold: threshold,
 		});
 
+		if (error) {
+			console.error("Error searching for tools:", error);
+			return [];
+		}
+
 		if (!results) return [];
+
+		// Map the search results back to the full tool definitions
 		return results
 			.map((r) => this.allToolsMap.get(r.name))
 			.filter(Boolean) as ToolDefinition[];
