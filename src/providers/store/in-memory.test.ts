@@ -115,4 +115,33 @@ describe('InMemoryStore', () => {
 		const results = await store.search(queryEmbedding, 5, 0)
 		expect(results.length).toBe(0)
 	})
+
+	it('should only re-embed tools that have changed on subsequent syncs', async () => {
+		const store = InMemoryStore.create()
+
+		// First sync, should embed both tools
+		await store.sync([toolADef, toolBDef], mockEmbeddingProvider)
+		expect(
+			mockEmbeddingProvider.getFloatEmbeddingsBatch,
+		).toHaveBeenCalledTimes(1)
+		expect(
+			mockEmbeddingProvider.getFloatEmbeddingsBatch,
+		).toHaveBeenCalledWith([
+			'toolA: Does A. Keywords: alpha, apple',
+			'toolB: Does B. Keywords: bravo, banana',
+		])
+
+		vi.clearAllMocks()
+
+		const updatedToolADef = { ...toolADef, keywords: ['alpha', 'avocado'] } // Change toolA
+
+		// Second sync, should only re-embed the changed tool (toolA)
+		await store.sync([updatedToolADef, toolBDef], mockEmbeddingProvider)
+		expect(
+			mockEmbeddingProvider.getFloatEmbeddingsBatch,
+		).toHaveBeenCalledTimes(1)
+		expect(
+			mockEmbeddingProvider.getFloatEmbeddingsBatch,
+		).toHaveBeenCalledWith(['toolA: Does A. Keywords: alpha, avocado'])
+	})
 })

@@ -7,8 +7,7 @@ export class InMemoryStore implements ToolStore {
 	private tools: ToolWithMetadata[] = []
 
 	// private constructor is used to enforce async initialization via `create`.
-	private constructor() {
-	}
+	private constructor() { }
 
 	/**
 	 * Creates and initializes an instance of InMemoryStore.
@@ -18,29 +17,59 @@ export class InMemoryStore implements ToolStore {
 		return new InMemoryStore()
 	}
 
-	async sync(toolDefinitions: ToolDefinition[], embeddingProvider: EmbeddingProvider): Promise<void> {
+	async sync(
+		toolDefinitions: ToolDefinition[],
+		embeddingProvider: EmbeddingProvider,
+	): Promise<void> {
 		if (toolDefinitions.length === 0) {
 			this.tools = []
 			return
 		}
 
-		const textsToEmbed = toolDefinitions.map((definition) => {
-			const description = definition.tool.description || ''
-			const keywords = definition.keywords?.join(', ') || ''
-			return `${definition.name}: ${description}. Keywords: ${keywords}`.trim()
-		})
+		const existingToolsMap = new Map(
+			this.tools.map(t => [t.definition.name, t]),
+		)
+		const toolsToEmbed: ToolDefinition[] = []
+		const newToolsWithMetadata: ToolWithMetadata[] = []
 
-		// It uses the provider it received during the call
-		const embeddings = await embeddingProvider.getFloatEmbeddingsBatch(textsToEmbed)
+		for (const definition of toolDefinitions) {
+			const newHash = createToolContentHash(definition)
+			const existingTool = existingToolsMap.get(definition.name)
 
-		this.tools = toolDefinitions.map((definition, i) => ({
-			definition,
-			embedding: embeddings[i],
-			contentHash: createToolContentHash(definition),
-		}))
+			if (existingTool && existingTool.contentHash === newHash)
+				newToolsWithMetadata.push(existingTool)
+			else
+				toolsToEmbed.push(definition)
+		}
+
+		if (toolsToEmbed.length > 0) {
+			const textsToEmbed = toolsToEmbed.map((definition) => {
+				const description = definition.tool.description || ''
+				const keywords = definition.keywords?.join(', ') || ''
+				return `${definition.name}: ${description}. Keywords: ${keywords}`.trim()
+			})
+
+			const embeddings = await embeddingProvider.getFloatEmbeddingsBatch(
+				textsToEmbed,
+			)
+
+			const embeddedTools = toolsToEmbed.map((definition, i) => ({
+				definition,
+				embedding: embeddings[i],
+				contentHash: createToolContentHash(definition),
+			}))
+
+			newToolsWithMetadata.push(...embeddedTools)
+		}
+
+		this.tools = newToolsWithMetadata
 	}
 
-	async search(queryEmbedding: number[], count: number, threshold: number = 0): Promise<ToolDefinition[]> {
+	async search(
+		queryEmbedding: number[],
+		count: number,
+		threshold: number = 0,
+	): Promise<ToolDefinition[]> {
 		if (this.tools.length === 0)
 			return []
 
