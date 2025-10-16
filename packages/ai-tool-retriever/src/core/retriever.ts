@@ -1,9 +1,9 @@
 import type { Tool } from 'ai'
+import { extractToolsFromQuerySyntax } from '../utils'
 import type { EmbeddingProvider } from './embedding'
+import { ToolNotFoundError } from './errors'
 import type { ToolStore } from './store'
 import type { ToolDefinition } from './types'
-import { extractToolsFromQuerySyntax } from '../utils'
-import { ToolNotFoundError } from './errors'
 
 interface ToolRetrieverOptions {
 	tools: ToolDefinition[]
@@ -29,7 +29,7 @@ export class ToolRetriever {
 
 	private constructor(store: ToolStore, tools: ToolDefinition[], embeddingProvider: EmbeddingProvider) {
 		this.store = store
-		this.allTools = new Map(tools.map(t => [t.name, t]))
+		this.allTools = new Map(tools.map((t) => [t.name, t]))
 		this.embeddingProvider = embeddingProvider
 	}
 
@@ -47,10 +47,7 @@ export class ToolRetriever {
 	 * @returns A promise that resolves to a record of relevant tools.
 	 * @throws {ToolNotFoundError} If `strict` is true and a tool from the query syntax is not found.
 	 */
-	public async retrieve(
-		userQuery: string,
-		options: RetrieveOptions = {},
-	): Promise<Record<string, Tool<any, any>>> {
+	public async retrieve(userQuery: string, options: RetrieveOptions = {}): Promise<Record<string, Tool<any, any>>> {
 		const results = await this.retrieveBatch([userQuery], options)
 		return results[0]
 	}
@@ -82,19 +79,16 @@ export class ToolRetriever {
 
 			const finalTools = new Map<string, Tool<any, any>>()
 
-			for (const definition of semanticallyMatched)
-				finalTools.set(definition.name, definition.tool)
+			for (const definition of semanticallyMatched) finalTools.set(definition.name, definition.tool)
 
 			for (const toolName of explicitlyMentioned) {
 				const definition = this.allTools.get(toolName)
 				if (definition) {
 					finalTools.set(definition.name, definition.tool)
-				}
-				else {
+				} else {
 					if (strict) {
 						throw new ToolNotFoundError(toolName)
-					}
-					else {
+					} else {
 						console.warn(`Tool '${toolName}' from query syntax not found.`)
 					}
 				}

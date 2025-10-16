@@ -1,5 +1,5 @@
-import type { ToolDefinition } from '../core/types'
 import { createHash } from 'node:crypto'
+import type { ToolDefinition } from '../core/types'
 
 /**
  * Calculates the cosine similarity between two vectors.
@@ -8,8 +8,7 @@ import { createHash } from 'node:crypto'
  * @returns The cosine similarity, a value between -1 and 1.
  */
 export function cosineSimilarity(vecA: number[], vecB: number[]): number {
-	if (vecA.length !== vecB.length)
-		return 0
+	if (vecA.length !== vecB.length) return 0
 
 	let dotProduct = 0
 	let normA = 0
@@ -22,8 +21,7 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
 	}
 
 	const denominator = Math.sqrt(normA) * Math.sqrt(normB)
-	if (denominator === 0)
-		return 0
+	if (denominator === 0) return 0
 
 	return dotProduct / denominator
 }
@@ -43,8 +41,7 @@ export function extractToolsFromQuerySyntax(query: string): string[] {
 	const matches = query.matchAll(toolSyntaxRegex)
 	for (const match of matches) {
 		const toolName = match[1]?.trim()
-		if (toolName)
-			toolNames.add(toolName)
+		if (toolName) toolNames.add(toolName)
 	}
 	return Array.from(toolNames)
 }

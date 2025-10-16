@@ -7,10 +7,7 @@ export default defineConfig({
 		'src/providers/store/in-memory.ts',
 		'src/utils/index.ts',
 	],
-	external: [
-		'sharp',
-		'@xenova/transformers',
-	],
+	external: ['sharp', '@xenova/transformers'],
 	format: ['esm'],
 	dts: false,
 	splitting: true,

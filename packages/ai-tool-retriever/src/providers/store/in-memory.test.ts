@@ -1,8 +1,8 @@
-import type { EmbeddingProvider } from '../../core/embedding'
-import type { ToolDefinition } from '../../core/types'
 import { tool as createTool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import type { EmbeddingProvider } from '../../core/embedding'
+import type { ToolDefinition } from '../../core/types'
 import { InMemoryStore } from './in-memory'
 
 const toolADef: ToolDefinition = {
@@ -29,10 +29,8 @@ const mockEmbeddingProvider: EmbeddingProvider = {
 	getFloatEmbedding: vi.fn().mockResolvedValue([0, 0, 0, 0]),
 	getFloatEmbeddingsBatch: vi.fn().mockImplementation(async (texts: string[]) => {
 		return texts.map((text) => {
-			if (text.includes('toolA'))
-				return embeddingA
-			if (text.includes('toolB'))
-				return embeddingB
+			if (text.includes('toolA')) return embeddingA
+			if (text.includes('toolB')) return embeddingB
 			return [0, 0, 0, 0]
 		})
 	}),
@@ -121,12 +119,8 @@ describe('InMemoryStore', () => {
 
 		// First sync, should embed both tools
 		await store.sync([toolADef, toolBDef], mockEmbeddingProvider)
-		expect(
-			mockEmbeddingProvider.getFloatEmbeddingsBatch,
-		).toHaveBeenCalledTimes(1)
-		expect(
-			mockEmbeddingProvider.getFloatEmbeddingsBatch,
-		).toHaveBeenCalledWith([
+		expect(mockEmbeddingProvider.getFloatEmbeddingsBatch).toHaveBeenCalledTimes(1)
+		expect(mockEmbeddingProvider.getFloatEmbeddingsBatch).toHaveBeenCalledWith([
 			'toolA: Does A. Keywords: alpha, apple',
 			'toolB: Does B. Keywords: banana, bravo',
 		])
@@ -137,11 +131,9 @@ describe('InMemoryStore', () => {
 
 		// Second sync, should only re-embed the changed tool (toolA)
 		await store.sync([updatedToolADef, toolBDef], mockEmbeddingProvider)
-		expect(
-			mockEmbeddingProvider.getFloatEmbeddingsBatch,
-		).toHaveBeenCalledTimes(1)
-		expect(
-			mockEmbeddingProvider.getFloatEmbeddingsBatch,
-		).toHaveBeenCalledWith(['toolA: Does A. Keywords: alpha, avocado'])
+		expect(mockEmbeddingProvider.getFloatEmbeddingsBatch).toHaveBeenCalledTimes(1)
+		expect(mockEmbeddingProvider.getFloatEmbeddingsBatch).toHaveBeenCalledWith([
+			'toolA: Does A. Keywords: alpha, avocado',
+		])
 	})
 })

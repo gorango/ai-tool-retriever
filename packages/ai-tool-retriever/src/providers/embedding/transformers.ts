@@ -1,7 +1,7 @@
-import type { FeatureExtractionPipeline } from '@xenova/transformers'
-import type { EmbeddingProvider } from '../../core/embedding'
 import path from 'node:path'
 import process from 'node:process'
+import type { FeatureExtractionPipeline } from '@xenova/transformers'
+import type { EmbeddingProvider } from '../../core/embedding'
 
 // Use a global symbol to ensure the pipeline is a true singleton across HMR reloads
 const PIPELINE_PROMISE_SYMBOL = Symbol.for('ai-tool-retriever.pipeline_promise')
@@ -24,22 +24,23 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
 	 * Gets the singleton instance of the TransformersEmbeddingProvider, initializing it if necessary.
 	 */
 	public static async create(): Promise<TransformersEmbeddingProvider> {
-		if (this.instance)
-			return this.instance
+		if (TransformersEmbeddingProvider.instance) return TransformersEmbeddingProvider.instance
 
-		if (!this.initializationPromise) {
-			this.initializationPromise = new Promise((resolve, reject) => {
-				this.getPipeline().then((pipelineInstance) => {
-					this.instance = new TransformersEmbeddingProvider(pipelineInstance)
-					resolve(this.instance)
-				}).catch((error) => {
-					console.error('Failed to initialize embedding model pipeline.')
-					reject(error)
-				})
+		if (!TransformersEmbeddingProvider.initializationPromise) {
+			TransformersEmbeddingProvider.initializationPromise = new Promise((resolve, reject) => {
+				TransformersEmbeddingProvider.getPipeline()
+					.then((pipelineInstance) => {
+						TransformersEmbeddingProvider.instance = new TransformersEmbeddingProvider(pipelineInstance)
+						resolve(TransformersEmbeddingProvider.instance)
+					})
+					.catch((error) => {
+						console.error('Failed to initialize embedding model pipeline.')
+						reject(error)
+					})
 			})
 		}
 
-		return this.initializationPromise
+		return TransformersEmbeddingProvider.initializationPromise
 	}
 
 	/**
@@ -55,15 +56,13 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
 				const pipelineInstance = await pipelinePromise
 				await pipelineInstance.dispose()
 				console.log('Embedding model pipeline disposed successfully.')
-			}
-			catch (error) {
+			} catch (error) {
 				console.error('Error disposing the embedding model pipeline:', error)
-			}
-			finally {
+			} finally {
 				// Clear the global symbol and reset the singleton state
 				delete _global[PIPELINE_PROMISE_SYMBOL]
-				this.instance = undefined
-				this.initializationPromise = null
+				TransformersEmbeddingProvider.instance = undefined
+				TransformersEmbeddingProvider.initializationPromise = null
 			}
 		}
 	}

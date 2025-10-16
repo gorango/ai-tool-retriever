@@ -1,6 +1,6 @@
-import type { ToolDefinition } from 'ai-tool-retriever'
 import { randomBytes } from 'node:crypto'
 import { tool } from 'ai'
+import type { ToolDefinition } from 'ai-tool-retriever'
 import { InMemoryStore } from 'ai-tool-retriever/providers/store/in-memory'
 import { z } from 'zod'
 
@@ -8,12 +8,7 @@ const mockEmbeddingProvider = {
 	dimensions: 4,
 	getFloatEmbedding: async () => [0, 0, 0, 0],
 	getFloatEmbeddingsBatch: async (texts: string[]) => {
-		return texts.map(() => [
-			Math.random(),
-			Math.random(),
-			Math.random(),
-			Math.random(),
-		])
+		return texts.map(() => [Math.random(), Math.random(), Math.random(), Math.random()])
 	},
 }
 

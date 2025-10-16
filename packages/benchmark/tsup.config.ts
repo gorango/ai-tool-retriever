@@ -7,8 +7,5 @@ export default defineConfig({
 	target: 'node20',
 	clean: true,
 	sourcemap: true,
-	external: [
-		'sharp',
-		'@xenova/transformers',
-	],
+	external: ['sharp', '@xenova/transformers'],
 })

@@ -7,7 +7,7 @@ export class InMemoryStore implements ToolStore {
 	private tools: ToolWithMetadata[] = []
 
 	// private constructor is used to enforce async initialization via `create`.
-	private constructor() { }
+	private constructor() {}
 
 	/**
 	 * Creates and initializes an instance of InMemoryStore.
@@ -17,18 +17,13 @@ export class InMemoryStore implements ToolStore {
 		return new InMemoryStore()
 	}
 
-	async sync(
-		toolDefinitions: ToolDefinition[],
-		embeddingProvider: EmbeddingProvider,
-	): Promise<void> {
+	async sync(toolDefinitions: ToolDefinition[], embeddingProvider: EmbeddingProvider): Promise<void> {
 		if (toolDefinitions.length === 0) {
 			this.tools = []
 			return
 		}
 
-		const existingToolsMap = new Map(
-			this.tools.map(t => [t.definition.name, t]),
-		)
+		const existingToolsMap = new Map(this.tools.map((t) => [t.definition.name, t]))
 		const toolsToEmbed: ToolDefinition[] = []
 		const newToolsWithMetadata: ToolWithMetadata[] = []
 
@@ -36,10 +31,8 @@ export class InMemoryStore implements ToolStore {
 			const newHash = createToolContentHash(definition)
 			const existingTool = existingToolsMap.get(definition.name)
 
-			if (existingTool && existingTool.contentHash === newHash)
-				newToolsWithMetadata.push(existingTool)
-			else
-				toolsToEmbed.push(definition)
+			if (existingTool && existingTool.contentHash === newHash) newToolsWithMetadata.push(existingTool)
+			else toolsToEmbed.push(definition)
 		}
 
 		if (toolsToEmbed.length > 0) {
@@ -49,9 +42,7 @@ export class InMemoryStore implements ToolStore {
 				return `${definition.name}: ${description}. Keywords: ${keywords}`.trim()
 			})
 
-			const embeddings = await embeddingProvider.getFloatEmbeddingsBatch(
-				textsToEmbed,
-			)
+			const embeddings = await embeddingProvider.getFloatEmbeddingsBatch(textsToEmbed)
 
 			const embeddedTools = toolsToEmbed.map((definition, i) => ({
 				definition,
@@ -65,23 +56,18 @@ export class InMemoryStore implements ToolStore {
 		this.tools = newToolsWithMetadata
 	}
 
-	async search(
-		queryEmbedding: number[],
-		count: number,
-		threshold: number = 0,
-	): Promise<ToolDefinition[]> {
-		if (this.tools.length === 0)
-			return []
+	async search(queryEmbedding: number[], count: number, threshold: number = 0): Promise<ToolDefinition[]> {
+		if (this.tools.length === 0) return []
 
-		const scoredTools = this.tools.map(toolWithMeta => ({
+		const scoredTools = this.tools.map((toolWithMeta) => ({
 			definition: toolWithMeta.definition,
 			similarity: cosineSimilarity(queryEmbedding, toolWithMeta.embedding),
 		}))
 
 		return scoredTools
 			.sort((a, b) => b.similarity - a.similarity)
-			.filter(item => item.similarity >= threshold)
+			.filter((item) => item.similarity >= threshold)
 			.slice(0, count)
-			.map(item => item.definition)
+			.map((item) => item.definition)
 	}
 }

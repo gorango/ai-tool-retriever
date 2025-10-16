@@ -1,7 +1,7 @@
-import type { ToolDefinition } from '../core/types'
 import { tool as createTool } from 'ai'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import type { ToolDefinition } from '../core/types'
 import { cosineSimilarity, createToolContentHash, extractToolsFromQuerySyntax } from './utils'
 
 describe('extractToolsFromQuerySyntax', () => {
