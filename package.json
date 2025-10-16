@@ -2,7 +2,7 @@
 	"name": "ai-tool-retriever-workspace",
 	"type": "module",
 	"private": true,
-	"packageManager": "pnpm@10.18.1",
+	"packageManager": "pnpm@10.18.3",
 	"scripts": {
 		"lint": "biome check",
 		"typecheck": "tsc --noEmit",
@@ -14,7 +14,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.2.6",
-		"@types/node": "^24.7.2",
+		"@types/node": "^24.8.0",
 		"@vitest/coverage-v8": "3.2.4",
 		"typescript": "^5.9.3",
 		"vitest": "^3.2.4"

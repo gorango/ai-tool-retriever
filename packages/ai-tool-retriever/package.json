@@ -53,10 +53,10 @@
 	},
 	"devDependencies": {
 		"@ai-sdk/openai": "^2.0.52",
-		"@types/node": "^24.7.2",
+		"@types/node": "^24.8.0",
 		"@vitest/coverage-v8": "3.2.4",
 		"@xenova/transformers": "^2.17.2",
-		"ai": "^5.0.70",
+		"ai": "^5.0.72",
 		"tsup": "^8.5.0",
 		"typescript": "^5.9.3",
 		"vitest": "^3.2.4",
