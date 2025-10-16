@@ -23,7 +23,7 @@ async function main() {
 		}
 
 		process.exit(0)
-	} catch (e) {
+	} catch (e: unknown) {
 		if (e instanceof ToolNotFoundError) {
 			console.error(`E2E_ERROR: ${e.message}`)
 			process.exit(10) // custom exit code for specific error

@@ -85,7 +85,7 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
 			})()
 		}
 
-		return _global[PIPELINE_PROMISE_SYMBOL]!
+		return _global[PIPELINE_PROMISE_SYMBOL] as Promise<FeatureExtractionPipeline>
 	}
 
 	/**

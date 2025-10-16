@@ -4,6 +4,12 @@ import type { ToolDefinition } from 'ai-tool-retriever'
 import { InMemoryStore } from 'ai-tool-retriever/providers/store/in-memory'
 import { z } from 'zod'
 
+type EmbeddingProvider = {
+	dimensions: number
+	getFloatEmbedding: (text: string) => Promise<number[]>
+	getFloatEmbeddingsBatch: (texts: string[]) => Promise<number[][]>
+}
+
 const mockEmbeddingProvider = {
 	dimensions: 4,
 	getFloatEmbedding: async () => [0, 0, 0, 0],
@@ -31,7 +37,7 @@ async function runBenchmark() {
 
 	for (const count of toolCounts) {
 		const tools = createMockTools(count)
-		await store.sync(tools, mockEmbeddingProvider as any)
+		await store.sync(tools, mockEmbeddingProvider as EmbeddingProvider)
 
 		const searchIterations = 100
 		const startTime = performance.now()

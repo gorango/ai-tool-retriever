@@ -17,7 +17,7 @@ vi.mock('@xenova/transformers', () => ({
 const PIPELINE_PROMISE_SYMBOL = Symbol.for('ai-tool-retriever.pipeline_promise')
 
 describe('TransformersEmbeddingProvider', () => {
-	let TransformersEmbeddingProvider: any
+	let TransformersEmbeddingProvider: typeof import('./transformers').TransformersEmbeddingProvider
 
 	beforeEach(async () => {
 		vi.resetModules()
@@ -27,7 +27,7 @@ describe('TransformersEmbeddingProvider', () => {
 
 	afterEach(() => {
 		vi.clearAllMocks()
-		delete (globalThis as any)[PIPELINE_PROMISE_SYMBOL]
+		delete (globalThis as Record<string | symbol, unknown>)[PIPELINE_PROMISE_SYMBOL]
 	})
 
 	it('should initialize the pipeline only once on multiple create calls', async () => {

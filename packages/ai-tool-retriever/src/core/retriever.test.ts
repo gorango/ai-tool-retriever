@@ -102,7 +102,7 @@ describe('ToolRetriever', () => {
 	})
 
 	describe('strict mode', () => {
-		let consoleWarnSpy: any
+		let consoleWarnSpy: ReturnType<typeof vi.spyOn>
 
 		beforeEach(() => {
 			consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
